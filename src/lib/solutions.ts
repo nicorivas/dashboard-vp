@@ -82,6 +82,17 @@ export function findDetTab(partner: string, solucion: string): string | null {
     if (tn === ns) return tab;
     if (tn.startsWith(ns) || ns.startsWith(tn)) return tab;
   }
+  // Fallback: match by significant words (>2 chars) to tolerate stop words like "de"
+  const nsWords = new Set(ns.split(" ").filter((w) => w.length > 2));
+  if (nsWords.size > 0) {
+    for (const [p, sol, tab] of SOLUTION_TO_TAB_RAW) {
+      if (normalize(p) !== np) continue;
+      const tnWords = new Set(normalize(sol).split(" ").filter((w) => w.length > 2));
+      if (tnWords.size === 0) continue;
+      const matches = [...nsWords].filter((w) => tnWords.has(w)).length;
+      if (matches === nsWords.size || matches === tnWords.size) return tab;
+    }
+  }
   return null;
 }
 

@@ -472,7 +472,10 @@ function parseConsolidado(values: any[][], kpisBySlug: Map<string, KpiRow>): Sol
     const fechaHito = s(row[9]);
     const comentarios = s(row[10]);
     const detTab = findDetTab(socio, solucion);
-    const slug = solutionSlug(socio, solucion);
+    // Use canonical solution name so the slug always matches findSolutionBySlug,
+    // even when the Sheet has a slightly different spelling (e.g. missing "de").
+    const canonicalSolucion = detTab ? (findSolutionByTab(detTab)?.solucion ?? solucion) : solucion;
+    const slug = solutionSlug(socio, canonicalSolucion);
     const kpi = kpisBySlug.get(slug);
 
     out.push({
