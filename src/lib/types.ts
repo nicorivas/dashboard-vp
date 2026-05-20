@@ -115,3 +115,19 @@ export type Tarea = {
   fin: string;
   comentarios: string;
 };
+
+/** Usuario de Supabase Auth tal como lo expone `/api/users` a la sección de
+ *  gestión de usuarios (sólo para el admin autorizado). */
+export type DashboardUser = {
+  id: string;
+  email: string;
+  createdAt: string;
+  lastSignInAt: string | null;
+  /** Contraseña inicial guardada en `app_metadata`; `null` si nunca se guardó
+   *  (usuarios creados antes de esta funcionalidad). */
+  initialPassword: string | null;
+  /** `true` si el usuario fue creado desde esta sección del dashboard. */
+  createdFromDashboard: boolean;
+  /** Rol/socio que `resolveUser` asigna a este email — para referencia visual. */
+  resolvedLabel: string;
+};

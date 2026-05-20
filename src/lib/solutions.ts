@@ -14,6 +14,7 @@ export const PARTNERS = [
   { name: "OTIC CChC", aliases: [] },
   { name: "EAUC – PUC", aliases: ["EAUC", "EAUC - PUC", "EAUC-PUC"] },
   { name: "Multigremial Nacional", aliases: ["MGN"] },
+  { name: "Abastible", aliases: [] },
 ] as const;
 
 export function canonicalPartner(name: string): string | null {

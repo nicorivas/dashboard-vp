@@ -52,6 +52,16 @@ function getSheetId() {
   return id;
 }
 
+/**
+ * Sheet del que se leen los KPIs de partners (pestaña `KPIs_PYMEs_Partners`).
+ * Si `PARTNERS_SHEET_ID` no está seteado, se usa el Sheet principal — así el
+ * comportamiento es idéntico al de hoy hasta que se migre a un Sheet aparte
+ * (el Sheet "Gestión de Partners — Valor Pyme 2026").
+ */
+function getPartnersSheetId() {
+  return process.env.PARTNERS_SHEET_ID || getSheetId();
+}
+
 /** Trim whitespace, devuelve string limpio. */
 function s(v: unknown): string {
   return String(v ?? "").trim();
@@ -113,15 +123,22 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
   }
 
   const sheetId = getSheetId();
+  const partnersSheetId = getPartnersSheetId();
+  const samePartnersSheet = partnersSheetId === sheetId;
   const sheets = sheetsClient();
+
+  // Rangos del Sheet principal. Si los partners viven en el mismo Sheet,
+  // se piden todos en un solo batchGet; si no, los partners se leen aparte.
+  const mainRanges = [
+    `'${GANTT_TAB}'!A1:AT200`,
+    `'${CONSOLIDADO_TAB}'!A1:L80`,
+    `'${KPIS_TAB}'!A1:U60`,
+  ];
+  if (samePartnersSheet) mainRanges.push(`'${KPIS_PARTNERS_TAB}'!A1:U80`);
+
   const res = await sheets.spreadsheets.values.batchGet({
     spreadsheetId: sheetId,
-    ranges: [
-      `'${GANTT_TAB}'!A1:AT200`,
-      `'${CONSOLIDADO_TAB}'!A1:L80`,
-      `'${KPIS_TAB}'!A1:U60`,
-      `'${KPIS_PARTNERS_TAB}'!A1:U80`,
-    ],
+    ranges: mainRanges,
     // UNFORMATTED_VALUE: los números llegan como `number`, sin pasar por el
     // formato visual del Sheet (que usa "," como separador de miles en es-CL).
     // Las fechas se piden como string para no recibir serial numbers.
@@ -132,7 +149,20 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
   const ganttValues = res.data.valueRanges?.[0]?.values ?? [];
   const consolidadoValues = res.data.valueRanges?.[1]?.values ?? [];
   const kpisValues = res.data.valueRanges?.[2]?.values ?? [];
-  const kpisPartnerValues = res.data.valueRanges?.[3]?.values ?? [];
+
+  let kpisPartnerValues: any[][];
+  if (samePartnersSheet) {
+    kpisPartnerValues = res.data.valueRanges?.[3]?.values ?? [];
+  } else {
+    // Sheet de partners separado ("Gestión de Partners — Valor Pyme 2026").
+    const partnersRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: partnersSheetId,
+      range: `'${KPIS_PARTNERS_TAB}'!A1:U200`,
+      valueRenderOption: "UNFORMATTED_VALUE",
+      dateTimeRenderOption: "FORMATTED_STRING",
+    });
+    kpisPartnerValues = partnersRes.data.values ?? [];
+  }
 
   const { weeks, rows: ganttRows, ejeBySlug } = parseGantt(ganttValues);
   const kpisBySlug = parseKpiSheet(kpisValues, "socio");

@@ -55,6 +55,7 @@ Copia `.env.local.example` a `.env.local` para desarrollo, o configúralas en Ve
 | `GOOGLE_PRIVATE_KEY` | `private_key` completa, con `-----BEGIN/END PRIVATE KEY-----`. Acepta `\n` literales o multilínea. |
 | `SHEET_ID` | ID del Sheet (de la URL `/spreadsheets/d/<ID>/edit`) |
 | `SHEET_RANGE` | Rango a leer, ej. `Gantt!A1:AT200` |
+| `PARTNERS_SHEET_ID` | **Opcional**. ID del Sheet "Gestión de Partners — Valor Pyme 2026". La pestaña `KPIs_PYMEs_Partners` se lee desde aquí. Si se deja vacío, se usa `SHEET_ID` (comportamiento actual). El Sheet debe estar compartido con el service account como Lector. |
 | `BYPASS_AUTH` | **TEMPORAL**. Si vale `1`, el middleware deja pasar todo y `/dashboard` finge ser `valentina.galiano@feconsulting.cl` (vista ALL). Útil para demos sin Supabase configurado. **Quitar antes de abrirlo a socios.** |
 
 ## Desarrollo local

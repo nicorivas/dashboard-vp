@@ -22,9 +22,12 @@ const DOMAIN_TO_PARTNER: Record<string, string> = {
   "microsoft.com": "Microsoft",
   "cchc.cl": "OTIC CChC",
   "oticcchc.cl": "OTIC CChC",
+  "ccc.cl": "OTIC CChC",
   "uc.cl": "EAUC – PUC",
   "eclass.cl": "EAUC – PUC",
   "multigremial.cl": "Multigremial Nacional",
+  "multigremialnacional.cl": "Multigremial Nacional",
+  "abastible.cl": "Abastible",
 };
 
 const EMAIL_TO_PARTNER: Record<string, string> = {

@@ -9,12 +9,25 @@ const TABS: { href: string; label: string; matchExact?: boolean }[] = [
   { href: "/dashboard/partners", label: "Partners" },
 ];
 
-export function NavTabs({ visible = true }: { visible?: boolean }) {
+const USERS_TAB: { href: string; label: string; matchExact?: boolean } = {
+  href: "/dashboard/usuarios",
+  label: "Usuarios",
+};
+
+export function NavTabs({
+  visible = true,
+  canManageUsers = false,
+}: {
+  visible?: boolean;
+  /** Muestra la pestaña "Usuarios" — sólo para la allowlist de gestión. */
+  canManageUsers?: boolean;
+}) {
   const pathname = usePathname();
   if (!visible) return null;
+  const tabs = canManageUsers ? [...TABS, USERS_TAB] : TABS;
   return (
     <nav className="flex items-center gap-1 border-b border-gray-200">
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const active = t.matchExact ? pathname === t.href : pathname.startsWith(t.href);
         return (
           <Link
