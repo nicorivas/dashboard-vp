@@ -16,7 +16,9 @@ const GANTT_TAB = "3. Gantt por solución";
 const CONSOLIDADO_TAB = "4. Consolidado (etapas x sol)";
 const KPIS_TAB = "KPIs_PYMEs";
 const KPIS_PARTNERS_TAB = "KPIs_PYMEs_Partners";
+const MASTER_TAB = "Lista correcta de nombres";
 const CACHE_TTL_MS = 30 * 1000;
+const MASTER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min — cambia poco
 
 type AggregateData = {
   weeks: string[];
@@ -26,7 +28,16 @@ type AggregateData = {
   fetchedAt: number;
 };
 
+/** Fila de la hoja maestra "Lista correcta de nombres". */
+export type MasterRow = {
+  tipo: "Socio" | "Partner";
+  entity: string;   // nombre canónico del socio o partner
+  solucion: string; // nombre canónico de la solución
+  mostrar: boolean; // si=true, no=false
+};
+
 let aggregateCache: { data: AggregateData; expiresAt: number } | null = null;
+let masterCache: { data: MasterRow[]; expiresAt: number } | null = null;
 const detailCache = new Map<string, { data: SolutionDetail; expiresAt: number }>();
 
 function getAuth() {
@@ -60,6 +71,10 @@ function getSheetId() {
  */
 function getPartnersSheetId() {
   return process.env.PARTNERS_SHEET_ID || getSheetId();
+}
+
+function getMasterSheetId() {
+  return process.env.MASTER_SHEET_ID || getSheetId();
 }
 
 /** Trim whitespace, devuelve string limpio. */
@@ -120,6 +135,74 @@ function parsePercent(raw: unknown): number {
   return 0;
 }
 
+/**
+ * Lee la hoja "Lista correcta de nombres" del Sheet maestro.
+ * Es la fuente de verdad de nombres canónicos y visibilidad de soluciones.
+ * Columnas esperadas (detección flexible): Tipo | Socio/Partner | Solución | Mostrar
+ */
+export async function fetchMasterList(force = false): Promise<MasterRow[]> {
+  if (!force && masterCache && masterCache.expiresAt > Date.now()) return masterCache.data;
+
+  const sheets = sheetsClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: getMasterSheetId(),
+    range: `'${MASTER_TAB}'!A1:Z200`,
+    valueRenderOption: "UNFORMATTED_VALUE",
+    dateTimeRenderOption: "FORMATTED_STRING",
+  });
+  const values = res.data.values ?? [];
+  const data = parseMasterList(values);
+  masterCache = { data, expiresAt: Date.now() + MASTER_CACHE_TTL_MS };
+  return data;
+}
+
+function parseMasterList(values: any[][]): MasterRow[] {
+  if (!values.length) return [];
+
+  // Busca fila de header: debe tener "tipo" o "socio"/"partner" y "soluc" y "mostrar"
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(values.length, 5); i++) {
+    const row = (values[i] || []).map((c: any) => s(c).toLowerCase());
+    const hasTipoOrEntity = row.some((c: string) => c === "tipo" || c === "socio" || c === "partner" || c.startsWith("nombre"));
+    const hasSolucion = row.some((c: string) => c.startsWith("soluc"));
+    const hasMostrar = row.some((c: string) => c.startsWith("mostrar"));
+    if (hasTipoOrEntity && hasSolucion && hasMostrar) { headerIdx = i; break; }
+  }
+  if (headerIdx < 0) return [];
+
+  const header = (values[headerIdx] || []).map((c: any) => s(c).toLowerCase());
+  const findCol = (...cands: string[]) => {
+    for (const cand of cands) {
+      const idx = header.findIndex((h: string) => h === cand || h.startsWith(cand));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+
+  const colTipo    = findCol("tipo");
+  const colEntity  = findCol("socio", "partner", "nombre");
+  const colSol     = findCol("soluc");
+  const colMostrar = findCol("mostrar");
+
+  if (colEntity < 0 || colSol < 0 || colMostrar < 0) return [];
+
+  const out: MasterRow[] = [];
+  for (let i = headerIdx + 1; i < values.length; i++) {
+    const row = values[i] || [];
+    const entity  = s(row[colEntity]);
+    const solucion = s(row[colSol]);
+    if (!entity || !solucion) continue;
+
+    const tipoRaw = colTipo >= 0 ? s(row[colTipo]).toLowerCase() : "";
+    const tipo: MasterRow["tipo"] = tipoRaw === "partner" ? "Partner" : "Socio";
+    const mostrarRaw = s(row[colMostrar]).toLowerCase();
+    const mostrar = mostrarRaw === "si" || mostrarRaw === "sí" || mostrarRaw === "yes" || mostrarRaw === "true";
+
+    out.push({ tipo, entity, solucion, mostrar });
+  }
+  return out;
+}
+
 export async function fetchAggregate(force = false): Promise<AggregateData> {
   if (!force && aggregateCache && aggregateCache.expiresAt > Date.now()) {
     return aggregateCache.data;
@@ -167,11 +250,31 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     kpisPartnerValues = partnersRes.data.values ?? [];
   }
 
-  const { weeks, rows: ganttRows, ejeByTab } = parseGantt(ganttValues);
-  const kpisBySlug = parseKpiSheet(kpisValues, "socio");
+  // Hoja maestra: nombres canónicos + visibilidad. Se carga en paralelo.
+  const [masterList, ganttParsed, kpisBySlug] = await Promise.all([
+    fetchMasterList(force),
+    Promise.resolve(parseGantt(ganttValues)),
+    Promise.resolve(parseKpiSheet(kpisValues, "socio")),
+  ]);
+  const { weeks, rows: ganttRows, ejeByTab } = ganttParsed;
 
-  // Índice tab → KpiRow como fallback cuando el nombre de solución difiere
-  // entre pestañas (p.ej. "Academia Emprendedores" vs "Academia de Emprendedores").
+  // Índices de la hoja maestra para lookup rápido.
+  // normalize: minúsculas sin tildes para matching tolerante.
+  const norm = (v: string) => v.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+  const masterVisible  = new Set<string>(); // "entity|solucion" normalizado → visible
+  const masterHidden   = new Set<string>(); // "entity|solucion" normalizado → oculto
+  const masterNames    = new Map<string, { entity: string; solucion: string }>(); // norm key → canonical names
+  for (const row of masterList) {
+    const key = `${norm(row.entity)}|${norm(row.solucion)}`;
+    masterNames.set(key, { entity: row.entity, solucion: row.solucion });
+    if (row.mostrar) masterVisible.add(key);
+    else masterHidden.add(key);
+  }
+
+  // Si la hoja maestra está vacía (aún no configurada), no filtramos nada.
+  const masterActive = masterList.length > 0;
+
+  // Índice tab → KpiRow como fallback cuando el nombre de solución difiere entre pestañas.
   const kpisByTab = new Map<string, KpiRow>();
   for (const kpi of kpisBySlug.values()) {
     const tab = findDetTab(kpi.entity, kpi.solucion);
@@ -179,28 +282,57 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
   }
 
   const summariesRaw = parseConsolidado(consolidadoValues, kpisBySlug);
-  // El Gantt es la fuente de verdad para el eje. Se usan detTab como clave
-  // para evitar mismatches por diferencias de nombre entre pestañas.
-  const summaries = summariesRaw.map((s) => {
-    const tabKpi = s.detTab ? kpisByTab.get(s.detTab) : undefined;
-    const eje = (s.detTab ? ejeByTab.get(s.detTab) : undefined) ?? tabKpi?.kpis.eje ?? s.eje;
-    if (!tabKpi || s.pymeMeta != null) return { ...s, eje };
-    // Solución encontrada por tab pero no por slug: rellenar KPIs faltantes.
-    return {
-      ...s,
-      eje,
-      pymeMeta: tabKpi.kpis.pymeMeta,
-      pymeUnit: tabKpi.kpis.pymeUnit,
-      pymeSegmentos: tabKpi.kpis.pymeSegmentos,
-      pymeNotas: tabKpi.kpis.pymeNotas,
-      pymeSharedGroup: tabKpi.kpis.pymeSharedGroup,
-      pymeFuente: tabKpi.kpis.pymeFuente,
-      pymeMonthly: tabKpi.kpis.pymeMonthly,
-      pymeAcum: tabKpi.kpis.pymeAcum,
-      pymeAcumMonth: tabKpi.kpis.pymeAcumMonth,
-    };
-  });
-  const partnerSummaries = buildPartnerSummaries(kpisPartnerValues);
+
+  const summaries = summariesRaw
+    .map((s) => {
+      const tabKpi = s.detTab ? kpisByTab.get(s.detTab) : undefined;
+      const eje = (s.detTab ? ejeByTab.get(s.detTab) : undefined) ?? tabKpi?.kpis.eje ?? s.eje;
+
+      // Nombre canónico desde hoja maestra (si existe entrada).
+      const masterKey = `${norm(s.socio)}|${norm(s.solucion)}`;
+      const canonical = masterNames.get(masterKey);
+      const socio    = canonical?.entity  ?? s.socio;
+      const solucion = canonical?.solucion ?? s.solucion;
+
+      if (!tabKpi || s.pymeMeta != null) return { ...s, socio, solucion, eje };
+      return {
+        ...s, socio, solucion, eje,
+        pymeMeta: tabKpi.kpis.pymeMeta,
+        pymeUnit: tabKpi.kpis.pymeUnit,
+        pymeSegmentos: tabKpi.kpis.pymeSegmentos,
+        pymeNotas: tabKpi.kpis.pymeNotas,
+        pymeSharedGroup: tabKpi.kpis.pymeSharedGroup,
+        pymeFuente: tabKpi.kpis.pymeFuente,
+        pymeMonthly: tabKpi.kpis.pymeMonthly,
+        pymeAcum: tabKpi.kpis.pymeAcum,
+        pymeAcumMonth: tabKpi.kpis.pymeAcumMonth,
+      };
+    })
+    .filter((s) => {
+      if (!masterActive) return true;
+      const key = `${norm(s.socio)}|${norm(s.solucion)}`;
+      // Si aparece en la lista maestra, respetar "mostrar". Si no aparece, mostrar por defecto.
+      if (masterHidden.has(key)) return false;
+      return true;
+    });
+
+  const partnerSummariesRaw = buildPartnerSummaries(kpisPartnerValues);
+  const partnerSummaries = partnerSummariesRaw
+    .map((p) => {
+      const masterKey = `${norm(p.partner)}|${norm(p.solucion)}`;
+      const canonical = masterNames.get(masterKey);
+      return {
+        ...p,
+        partner:  canonical?.entity   ?? p.partner,
+        solucion: canonical?.solucion ?? p.solucion,
+      };
+    })
+    .filter((p) => {
+      if (!masterActive) return true;
+      const key = `${norm(p.partner)}|${norm(p.solucion)}`;
+      if (masterHidden.has(key)) return false;
+      return true;
+    });
 
   const data: AggregateData = {
     weeks,
