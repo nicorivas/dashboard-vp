@@ -80,11 +80,14 @@ const EJE_ALIASES: Record<string, string> = {
   talento: "Gestión y Talento",
   "gestión y talento": "Gestión y Talento",
   "gestion y talento": "Gestión y Talento",
+  comunidad: "Comunidad",
 };
 function normalizeEje(raw: string): string {
   if (!raw) return "";
   const k = raw.trim().toLowerCase();
-  return EJE_ALIASES[k] ?? raw.trim();
+  if (EJE_ALIASES[k]) return EJE_ALIASES[k];
+  // Title-case para que variaciones de casing (COMUNIDAD, comunidad) sean iguales
+  return raw.trim().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function parseEstado(raw: string): Estado {
@@ -164,14 +167,39 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     kpisPartnerValues = partnersRes.data.values ?? [];
   }
 
-  const { weeks, rows: ganttRows, ejeBySlug } = parseGantt(ganttValues);
+  const { weeks, rows: ganttRows, ejeByTab } = parseGantt(ganttValues);
   const kpisBySlug = parseKpiSheet(kpisValues, "socio");
+
+  // Índice tab → KpiRow como fallback cuando el nombre de solución difiere
+  // entre pestañas (p.ej. "Academia Emprendedores" vs "Academia de Emprendedores").
+  const kpisByTab = new Map<string, KpiRow>();
+  for (const kpi of kpisBySlug.values()) {
+    const tab = findDetTab(kpi.entity, kpi.solucion);
+    if (tab && !kpisByTab.has(tab)) kpisByTab.set(tab, kpi);
+  }
+
   const summariesRaw = parseConsolidado(consolidadoValues, kpisBySlug);
-  // El Gantt es la fuente de verdad para el eje (columna "Eje" editable por el cliente).
-  const summaries = summariesRaw.map((s) => ({
-    ...s,
-    eje: ejeBySlug.get(s.slug) ?? s.eje,
-  }));
+  // El Gantt es la fuente de verdad para el eje. Se usan detTab como clave
+  // para evitar mismatches por diferencias de nombre entre pestañas.
+  const summaries = summariesRaw.map((s) => {
+    const tabKpi = s.detTab ? kpisByTab.get(s.detTab) : undefined;
+    const eje = (s.detTab ? ejeByTab.get(s.detTab) : undefined) ?? tabKpi?.kpis.eje ?? s.eje;
+    if (!tabKpi || s.pymeMeta != null) return { ...s, eje };
+    // Solución encontrada por tab pero no por slug: rellenar KPIs faltantes.
+    return {
+      ...s,
+      eje,
+      pymeMeta: tabKpi.kpis.pymeMeta,
+      pymeUnit: tabKpi.kpis.pymeUnit,
+      pymeSegmentos: tabKpi.kpis.pymeSegmentos,
+      pymeNotas: tabKpi.kpis.pymeNotas,
+      pymeSharedGroup: tabKpi.kpis.pymeSharedGroup,
+      pymeFuente: tabKpi.kpis.pymeFuente,
+      pymeMonthly: tabKpi.kpis.pymeMonthly,
+      pymeAcum: tabKpi.kpis.pymeAcum,
+      pymeAcumMonth: tabKpi.kpis.pymeAcumMonth,
+    };
+  });
   const partnerSummaries = buildPartnerSummaries(kpisPartnerValues);
 
   const data: AggregateData = {
@@ -328,8 +356,8 @@ function parseNumberOrNull(raw: unknown): number | null {
 function parseGantt(values: any[][]): {
   weeks: string[];
   rows: GanttRow[];
-  /** Mapa slug → eje desde la columna "Eje" del Gantt (fuente de verdad). */
-  ejeBySlug: Map<string, string>;
+  /** Mapa detTab → eje desde la columna "Eje" del Gantt (fuente de verdad). */
+  ejeByTab: Map<string, string>;
 } {
   // Buscar la fila de header dinámicamente (columnas etiquetadas).
   let headerRowIdx = -1;
@@ -343,7 +371,7 @@ function parseGantt(values: any[][]): {
       break;
     }
   }
-  if (headerRowIdx < 0) return { weeks: [], rows: [], ejeBySlug: new Map() };
+  if (headerRowIdx < 0) return { weeks: [], rows: [], ejeByTab: new Map() };
 
   const headerRow = (values[headerRowIdx] || []).map((c: any) => s(c).toLowerCase());
   const findCol = (...candidates: string[]): number => {
@@ -368,7 +396,7 @@ function parseGantt(values: any[][]): {
   const weeks = weekCols.map((c) => s(values[headerRowIdx][c]));
 
   const rows: GanttRow[] = [];
-  const ejeBySlug = new Map<string, string>();
+  const ejeByTab = new Map<string, string>();
   let lastEje = "";
   let lastSocio = "";
   let lastSolucion = "";
@@ -397,13 +425,15 @@ function parseGantt(values: any[][]): {
     const semanas = weekCols.map((c) => s(row[c]));
     rows.push({ eje, socio, solucion, etapa, responsable, estado, semanas });
 
+    // Usar detTab como clave (fuzzy match de nombre) para evitar mismatches
+    // entre variaciones de nombre entre pestañas del Sheet.
     if (eje && socio && solucion) {
       const canonical = canonicalPartner(socio) ?? socio;
-      const slug = solutionSlug(canonical, solucion);
-      if (!ejeBySlug.has(slug)) ejeBySlug.set(slug, eje);
+      const tab = findDetTab(canonical, solucion);
+      if (tab && !ejeByTab.has(tab)) ejeByTab.set(tab, eje);
     }
   }
-  return { weeks, rows, ejeBySlug };
+  return { weeks, rows, ejeByTab };
 }
 
 function parseConsolidado(values: any[][], kpisBySlug: Map<string, KpiRow>): SolutionSummary[] {

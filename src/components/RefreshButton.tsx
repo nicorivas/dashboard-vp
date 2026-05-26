@@ -33,7 +33,7 @@ export function RefreshButton({ fetchedAt }: { fetchedAt?: number | null }) {
       <span className={loading ? "animate-spin" : ""}>↻</span>
       <span>{loading ? "Actualizando…" : "Refrescar"}</span>
       {!loading && fetchedAt && (
-        <span className="hidden text-gray-400 lg:inline">
+        <span className="hidden text-gray-400 lg:inline" suppressHydrationWarning>
           ·{" "}
           {new Date(fetchedAt).toLocaleTimeString("es-CL", {
             hour: "2-digit",

@@ -8,6 +8,7 @@ const EJE_BG: Record<string, string> = {
   Mercado: "bg-emerald-50/40",
   Digitalización: "bg-sky-50/40",
   "Gestión y Talento": "bg-violet-50/40",
+  Comunidad: "bg-rose-50/40",
 };
 
 function ejeRank(eje: string): number {

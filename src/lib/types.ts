@@ -44,8 +44,8 @@ export type GanttRow = {
 };
 
 /** Eje del programa Valor Pyme — orden canónico para visualización. */
-export type Eje = "Capital" | "Mercado" | "Digitalización" | "Gestión y Talento";
-export const EJES: Eje[] = ["Capital", "Mercado", "Digitalización", "Gestión y Talento"];
+export type Eje = "Capital" | "Mercado" | "Digitalización" | "Gestión y Talento" | "Comunidad";
+export const EJES: Eje[] = ["Capital", "Mercado", "Digitalización", "Gestión y Talento", "Comunidad"];
 
 /** Campos KPI compartidos por socios y partners. Provienen de las pestañas
  *  KPIs_PYMEs / KPIs_PYMEs_Partners (editables por el cliente). */

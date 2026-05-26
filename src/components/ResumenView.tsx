@@ -7,6 +7,7 @@ const EJE_COLOR: Record<string, string> = {
   Mercado: "from-emerald-50 to-white border-emerald-200 text-emerald-800",
   Digitalización: "from-sky-50 to-white border-sky-200 text-sky-800",
   "Gestión y Talento": "from-violet-50 to-white border-violet-200 text-violet-800",
+  Comunidad: "from-rose-50 to-white border-rose-200 text-rose-800",
 };
 
 const EJE_BG: Record<string, string> = {
@@ -14,6 +15,7 @@ const EJE_BG: Record<string, string> = {
   Mercado: "bg-emerald-50/40",
   Digitalización: "bg-sky-50/40",
   "Gestión y Talento": "bg-violet-50/40",
+  Comunidad: "bg-rose-50/40",
 };
 
 function ejeRank(eje: string): number {
@@ -95,7 +97,7 @@ export function ResumenView({
           PYMEs por eje · acumulado / meta 2026
         </h2>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {EJES.map((eje) => {
+          {EJES.filter((eje) => (byEje.get(eje)?.count ?? 0) > 0).map((eje) => {
             const t = byEje.get(eje) ?? { meta: 0, acum: 0, count: 0 };
             const pct = t.meta > 0 ? Math.round((t.acum / t.meta) * 100) : 0;
             return (

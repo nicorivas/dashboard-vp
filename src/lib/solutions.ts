@@ -12,7 +12,7 @@ export const PARTNERS = [
   { name: "Defontana", aliases: [] },
   { name: "Microsoft", aliases: [] },
   { name: "OTIC CChC", aliases: [] },
-  { name: "EAUC – PUC", aliases: ["EAUC", "EAUC - PUC", "EAUC-PUC"] },
+  { name: "FACEA UC", aliases: ["EAUC", "EAUC – PUC", "EAUC - PUC", "EAUC-PUC", "FACEA – UC", "FACEA-UC"] },
   { name: "Multigremial Nacional", aliases: ["MGN"] },
   { name: "Abastible", aliases: [] },
 ] as const;
@@ -51,8 +51,9 @@ const SOLUTION_TO_TAB_RAW: Array<[partner: string, solution: string, tab: string
   ["OTIC CChC", "Ruta Inclusión financiera", "Det_OTIC_Inclusion"],
   ["OTIC CChC", "Academia Pyme", "Det_OTIC_Academia"],
   ["OTIC CChC", "Programa de Desarrollo de Proveedores", "Det_OTIC_Proveedores"],
-  ["EAUC – PUC", "Pyme UC", "Det_EAUC_PymeUC"],
+  ["FACEA UC", "Pyme UC", "Det_EAUC_PymeUC"],
   ["Multigremial Nacional", "Academia Emprendedores", "Det_MGN_AcadEmpren"],
+  ["Multigremial Nacional", "Academia de Emprendedores", "Det_MGN_AcadEmpren"],
   ["Multigremial Nacional", "Ferias y Encuentros Empresariales", "Det_MGN_Ferias"],
 ];
 
