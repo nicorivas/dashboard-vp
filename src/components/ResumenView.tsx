@@ -10,12 +10,20 @@ const EJE_COLOR: Record<string, string> = {
   Comunidad: "from-rose-50 to-white border-rose-200 text-rose-800",
 };
 
-const EJE_BG: Record<string, string> = {
-  Capital: "bg-amber-50/40",
-  Mercado: "bg-emerald-50/40",
-  Digitalización: "bg-sky-50/40",
-  "Gestión y Talento": "bg-violet-50/40",
-  Comunidad: "bg-rose-50/40",
+const EJE_HEADER_ROW: Record<string, string> = {
+  Capital: "bg-amber-100/70 border-amber-200",
+  Mercado: "bg-emerald-100/70 border-emerald-200",
+  Digitalización: "bg-sky-100/70 border-sky-200",
+  "Gestión y Talento": "bg-violet-100/70 border-violet-200",
+  Comunidad: "bg-rose-100/70 border-rose-200",
+};
+
+const EJE_HEADER_TEXT: Record<string, string> = {
+  Capital: "text-amber-800",
+  Mercado: "text-emerald-800",
+  Digitalización: "text-sky-800",
+  "Gestión y Talento": "text-violet-800",
+  Comunidad: "text-rose-800",
 };
 
 function ejeRank(eje: string): number {
@@ -176,21 +184,23 @@ export function ResumenView({
                   if (r.eje !== lastEje) {
                     lastEje = r.eje;
                     const ejeTotals = byEje.get(r.eje) ?? { meta: 0, acum: 0, count: 0 };
+                    const ejeRowCls = EJE_HEADER_ROW[r.eje] ?? "bg-gray-50/40 border-gray-200";
+                    const ejeTextCls = EJE_HEADER_TEXT[r.eje] ?? "text-gray-700";
                     out.push(
                       <tr
                         key={`hdr-${r.eje}`}
-                        className={`border-t-2 border-gray-200 ${EJE_BG[r.eje] ?? "bg-gray-50/40"}`}
+                        className={`border-t-2 ${ejeRowCls}`}
                       >
-                        <td colSpan={3} className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-700">
+                        <td colSpan={3} className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider ${ejeTextCls}`}>
                           Eje · {r.eje}
                         </td>
-                        <td className="px-3 py-2 text-right text-xs font-semibold tabular-nums text-gray-700">
+                        <td className={`px-3 py-2 text-right text-xs font-semibold tabular-nums ${ejeTextCls}`}>
                           {ejeTotals.acum > 0 ? formatNumber(ejeTotals.acum) : "—"}
                         </td>
-                        <td className="px-3 py-2 text-right text-xs font-semibold tabular-nums text-gray-700">
+                        <td className={`px-3 py-2 text-right text-xs font-semibold tabular-nums ${ejeTextCls}`}>
                           {ejeTotals.meta > 0 ? formatNumber(ejeTotals.meta) : "—"}
                         </td>
-                        <td className="px-3 py-2 text-right text-xs font-semibold text-gray-700">
+                        <td className={`px-3 py-2 text-right text-xs font-semibold ${ejeTextCls}`}>
                           {ejeTotals.meta > 0
                             ? `${Math.round((ejeTotals.acum / ejeTotals.meta) * 100)}%`
                             : "—"}
