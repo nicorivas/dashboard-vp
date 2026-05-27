@@ -143,17 +143,22 @@ function parsePercent(raw: unknown): number {
 export async function fetchMasterList(force = false): Promise<MasterRow[]> {
   if (!force && masterCache && masterCache.expiresAt > Date.now()) return masterCache.data;
 
-  const sheets = sheetsClient();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: getMasterSheetId(),
-    range: `'${MASTER_TAB}'!A1:Z200`,
-    valueRenderOption: "UNFORMATTED_VALUE",
-    dateTimeRenderOption: "FORMATTED_STRING",
-  });
-  const values = res.data.values ?? [];
-  const data = parseMasterList(values);
-  masterCache = { data, expiresAt: Date.now() + MASTER_CACHE_TTL_MS };
-  return data;
+  try {
+    const sheets = sheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: getMasterSheetId(),
+      range: `'${MASTER_TAB}'!A1:Z200`,
+      valueRenderOption: "UNFORMATTED_VALUE",
+      dateTimeRenderOption: "FORMATTED_STRING",
+    });
+    const values = res.data.values ?? [];
+    const data = parseMasterList(values);
+    masterCache = { data, expiresAt: Date.now() + MASTER_CACHE_TTL_MS };
+    return data;
+  } catch (err) {
+    console.warn("[fetchMasterList] No se pudo leer la hoja maestra — se omite filtro de visibilidad.", err);
+    return [];
+  }
 }
 
 function parseMasterList(values: any[][]): MasterRow[] {
