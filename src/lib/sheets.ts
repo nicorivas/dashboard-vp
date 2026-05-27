@@ -152,11 +152,7 @@ export async function fetchMasterList(force = false): Promise<MasterRow[]> {
       dateTimeRenderOption: "FORMATTED_STRING",
     });
     const values = res.data.values ?? [];
-    console.log("[fetchMasterList] filas leídas:", values.length);
-    if (values.length > 0) console.log("[fetchMasterList] primera fila:", JSON.stringify(values[0]));
-    if (values.length > 1) console.log("[fetchMasterList] segunda fila:", JSON.stringify(values[1]));
     const data = parseMasterList(values);
-    console.log("[fetchMasterList] filas parseadas:", data.length);
     masterCache = { data, expiresAt: Date.now() + MASTER_CACHE_TTL_MS };
     return data;
   } catch (err) {
@@ -172,22 +168,17 @@ function parseMasterList(values: any[][]): MasterRow[] {
   let headerIdx = -1;
   for (let i = 0; i < Math.min(values.length, 5); i++) {
     const row = (values[i] || []).map((c: any) => s(c).toLowerCase());
-    console.log(`[parseMasterList] fila ${i}:`, JSON.stringify(row));
-    const hasTipoOrEntity = row.some((c: string) => c === "tipo" || c === "socio" || c === "partner" || c.startsWith("nombre"));
-    const hasSolucion = row.some((c: string) => c.startsWith("soluc"));
-    const hasMostrar = row.some((c: string) => c.startsWith("mostrar"));
-    console.log(`[parseMasterList] fila ${i} — entidad:${hasTipoOrEntity} soluc:${hasSolucion} mostrar:${hasMostrar}`);
+    const hasTipoOrEntity = row.some((c: string) => c.startsWith("tipo") || c.startsWith("socio") || c.startsWith("partner") || c.startsWith("nombre") || c.includes("socio") || c.includes("partner"));
+    const hasSolucion = row.some((c: string) => c.startsWith("soluc") || c.includes("soluc"));
+    const hasMostrar = row.some((c: string) => c.startsWith("mostrar") || c.includes("mostrar"));
     if (hasTipoOrEntity && hasSolucion && hasMostrar) { headerIdx = i; break; }
   }
-  if (headerIdx < 0) {
-    console.warn("[parseMasterList] No se encontró fila de headers");
-    return [];
-  }
+  if (headerIdx < 0) return [];
 
   const header = (values[headerIdx] || []).map((c: any) => s(c).toLowerCase());
   const findCol = (...cands: string[]) => {
     for (const cand of cands) {
-      const idx = header.findIndex((h: string) => h === cand || h.startsWith(cand));
+      const idx = header.findIndex((h: string) => h === cand || h.startsWith(cand) || h.includes(cand));
       if (idx >= 0) return idx;
     }
     return -1;
