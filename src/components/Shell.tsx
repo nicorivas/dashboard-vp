@@ -57,7 +57,7 @@ export function Shell({
       </header>
       <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
       <footer className="border-t border-gray-200 bg-white py-4 text-center text-xs font-semibold text-gray-500">
-        Hecha por FE Consulting ✨ para Valor Pyme
+        Hecho por FE Consulting ✨ para Valor Pyme
       </footer>
     </div>
   );
