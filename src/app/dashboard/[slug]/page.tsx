@@ -192,10 +192,10 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
             <>
               {/* Status actual */}
               <div className="rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <p className="text-sm text-gray-800">{summary.statusHistory[0].status}</p>
-                  <span className="shrink-0 text-xs text-gray-400">{summary.statusHistory[0].fecha}</span>
-                </div>
+                {summary.statusHistory[0].fecha && (
+                  <p className="mb-1.5 text-xs font-medium text-brand-600">{summary.statusHistory[0].fecha}</p>
+                )}
+                <p className="text-sm text-gray-800">{summary.statusHistory[0].status}</p>
               </div>
               {/* Historial */}
               {summary.statusHistory.length > 1 && (

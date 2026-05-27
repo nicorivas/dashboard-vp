@@ -301,12 +301,14 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     statusByKey.get(key)!.unshift({ status: entry.status, fecha: entry.fecha });
   }
   // Seed inicial desde hoja maestra: sólo para soluciones sin entradas en la hoja Status.
+  const today = new Date();
+  const todayStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
   for (const row of masterList) {
     if (!row.status) continue;
     const canonicalEntity = canonicalPartner(row.entity) ?? row.entity;
     const key = `${norm(canonicalEntity)}|${norm(row.solucion)}`;
     if (!statusByKey.has(key)) {
-      statusByKey.set(key, [{ status: row.status, fecha: "" }]);
+      statusByKey.set(key, [{ status: row.status, fecha: todayStr }]);
     }
   }
 

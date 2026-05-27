@@ -76,10 +76,10 @@ export function PartnerCard({ p }: { p: PartnerSummary }) {
         {p.statusHistory && p.statusHistory.length > 0 ? (
           <>
             <div className="rounded-lg border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-3">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-xs text-gray-800">{p.statusHistory[0].status}</p>
-                <span className="shrink-0 text-[10px] text-gray-400">{p.statusHistory[0].fecha}</span>
-              </div>
+              {p.statusHistory[0].fecha && (
+                <p className="mb-1 text-[10px] font-medium text-brand-600">{p.statusHistory[0].fecha}</p>
+              )}
+              <p className="text-xs text-gray-800">{p.statusHistory[0].status}</p>
             </div>
             {p.statusHistory.length > 1 && (
               <div className="mt-2 rounded-lg border border-gray-200 bg-white overflow-hidden">
