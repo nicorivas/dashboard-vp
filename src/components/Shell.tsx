@@ -26,11 +26,15 @@ export function Shell({
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="block">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                FE Consulting
-              </p>
-              <h1 className="text-base font-semibold text-gray-900">Programa Valor Pyme · BCI 2026</h1>
+            <Link href="/dashboard" className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/Fe_logotipo_2_rgb_negro-07.png" alt="FE Consulting" className="h-9 w-auto" />
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+                  FE Consulting
+                </p>
+                <h1 className="text-base font-semibold text-gray-900">Programa Valor Pyme · BCI 2026</h1>
+              </div>
             </Link>
             <span
               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${roleColor}`}
