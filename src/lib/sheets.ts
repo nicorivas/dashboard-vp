@@ -74,7 +74,7 @@ function getPartnersSheetId() {
 }
 
 function getMasterSheetId() {
-  return process.env.MASTER_SHEET_ID || process.env.PARTNERS_SHEET_ID || getSheetId();
+  return getSheetId(); // 'Lista correcta de nombres' vive en el Sheet principal (SHEET_ID)
 }
 
 /** Trim whitespace, devuelve string limpio. */
