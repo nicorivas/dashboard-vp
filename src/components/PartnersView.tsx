@@ -6,7 +6,7 @@ import { PymeProjectionChart } from "./PymeProjectionChart";
 const EJE_BG: Record<string, string> = {
   Capital: "bg-amber-50/40",
   Mercado: "bg-sky-50/40",
-  Digitalización: "bg-indigo-50/40",
+  Digitalización: "bg-rose-50/40",
   "Gestión y Talento": "bg-emerald-50/40",
   Comunidad: "bg-violet-50/40",
 };
