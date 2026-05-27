@@ -27,11 +27,6 @@ function avanceColor(v: number): string {
   return "text-red-600";
 }
 
-function fechaDisplay(fecha: string): { value: string; tone: "amber" | "neutral" } {
-  if (!fecha) return { value: "—", tone: "neutral" };
-  if (fecha.toLowerCase() === "pendiente") return { value: "Pendiente", tone: "amber" };
-  return { value: fecha, tone: "neutral" };
-}
 
 export function SolutionSummaryTable({
   summaries,
@@ -70,12 +65,6 @@ export function SolutionSummaryTable({
             <th className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">
               PYMEs · acum / meta 2026
             </th>
-            <th className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">
-              Próximo hito
-            </th>
-            <th className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">
-              Fecha
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -83,8 +72,6 @@ export function SolutionSummaryTable({
             const meta = s.pymeMeta;
             const acum = s.pymeAcum;
             const pct = meta != null && meta > 0 && acum != null ? Math.min(100, (acum / meta) * 100) : 0;
-            const fecha = fechaDisplay(s.fechaHito);
-
             return (
               <tr
                 key={s.slug}
@@ -164,21 +151,6 @@ export function SolutionSummaryTable({
                   )}
                 </td>
 
-                <td className="border-t border-l border-gray-100 px-3 py-2 text-xs text-gray-700">
-                  <span className="line-clamp-2">{s.proximoHito || "—"}</span>
-                </td>
-
-                <td className="border-t border-l border-gray-100 px-3 py-2 text-xs">
-                  <span
-                    className={
-                      fecha.tone === "amber"
-                        ? "font-medium text-amber-700"
-                        : "tabular-nums text-gray-700"
-                    }
-                  >
-                    {fecha.value}
-                  </span>
-                </td>
               </tr>
             );
           })}
