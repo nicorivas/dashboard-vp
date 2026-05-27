@@ -74,7 +74,7 @@ function getPartnersSheetId() {
 }
 
 function getMasterSheetId() {
-  return process.env.PARTNERS_SHEET_ID || getSheetId();
+  return process.env.MASTER_SHEET_ID || process.env.PARTNERS_SHEET_ID || getSheetId();
 }
 
 /** Trim whitespace, devuelve string limpio. */
@@ -192,9 +192,12 @@ function parseMasterList(values: any[][]): MasterRow[] {
   if (colEntity < 0 || colSol < 0 || colMostrar < 0) return [];
 
   const out: MasterRow[] = [];
+  let lastEntity = "";
   for (let i = headerIdx + 1; i < values.length; i++) {
     const row = values[i] || [];
-    const entity  = s(row[colEntity]);
+    const entityRaw = s(row[colEntity]);
+    if (entityRaw) lastEntity = entityRaw; // carry-forward: hereda el socio de la fila anterior
+    const entity = lastEntity;
     const solucion = s(row[colSol]);
     if (!entity || !solucion) continue;
 
