@@ -74,7 +74,7 @@ function getPartnersSheetId() {
 }
 
 function getMasterSheetId() {
-  return process.env.MASTER_SHEET_ID || getSheetId();
+  return process.env.PARTNERS_SHEET_ID || getSheetId();
 }
 
 /** Trim whitespace, devuelve string limpio. */
@@ -319,9 +319,7 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     .filter((s) => {
       if (!masterActive) return true;
       const key = `${norm(s.socio)}|${norm(s.solucion)}`;
-      // Si aparece en la lista maestra, respetar "mostrar". Si no aparece, mostrar por defecto.
-      if (masterHidden.has(key)) return false;
-      return true;
+      return masterVisible.has(key);
     });
 
   const partnerSummariesRaw = buildPartnerSummaries(kpisPartnerValues);
@@ -338,8 +336,7 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     .filter((p) => {
       if (!masterActive) return true;
       const key = `${norm(p.partner)}|${norm(p.solucion)}`;
-      if (masterHidden.has(key)) return false;
-      return true;
+      return masterVisible.has(key);
     });
 
   const data: AggregateData = {
