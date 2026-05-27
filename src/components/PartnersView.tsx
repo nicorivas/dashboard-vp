@@ -85,6 +85,8 @@ export function PartnersView({
                   <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider">Acumulado</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider">Meta 2026</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider">% Avance</th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">Actualización</th>
                 </tr>
               </thead>
               <tbody>
@@ -115,6 +117,7 @@ export function PartnersView({
                               ? `${Math.round((ejeTotals.acum / ejeTotals.meta) * 100)}%`
                               : "—"}
                           </td>
+                          <td colSpan={2} />
                         </tr>
                       );
                     }
@@ -147,6 +150,12 @@ export function PartnersView({
                           ) : (
                             <span className="text-xs text-gray-400">—</span>
                           )}
+                        </td>
+                        <td className="border-l border-gray-100 px-3 py-2 text-xs text-gray-700 max-w-[260px]">
+                          <span className="line-clamp-3">{r.statusHistory?.[0]?.status || "—"}</span>
+                        </td>
+                        <td className="border-l border-gray-100 px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                          {r.statusHistory?.[0]?.fecha || "—"}
                         </td>
                       </tr>
                     );

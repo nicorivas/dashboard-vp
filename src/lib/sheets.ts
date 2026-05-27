@@ -36,6 +36,7 @@ export type MasterRow = {
   entity: string;   // nombre canónico del socio o partner
   solucion: string; // nombre canónico de la solución
   mostrar: boolean; // si=true, no=false
+  status: string | null; // status inicial desde la hoja maestra
 };
 
 let aggregateCache: { data: AggregateData; expiresAt: number } | null = null;
@@ -190,6 +191,7 @@ function parseMasterList(values: any[][]): MasterRow[] {
   const colEntity  = findCol("socio", "partner", "nombre");
   const colSol     = findCol("soluc");
   const colMostrar = findCol("mostrar");
+  const colStatus  = findCol("status");
 
   if (colEntity < 0 || colSol < 0 || colMostrar < 0) return [];
 
@@ -207,8 +209,9 @@ function parseMasterList(values: any[][]): MasterRow[] {
     const tipo: MasterRow["tipo"] = tipoRaw === "partner" ? "Partner" : "Socio";
     const mostrarRaw = s(row[colMostrar]).toLowerCase();
     const mostrar = mostrarRaw === "si" || mostrarRaw === "sí" || mostrarRaw === "yes" || mostrarRaw === "true";
+    const status = colStatus >= 0 ? s(row[colStatus]) || null : null;
 
-    out.push({ tipo, entity, solucion, mostrar });
+    out.push({ tipo, entity, solucion, mostrar, status });
   }
   return out;
 }
@@ -296,6 +299,15 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     const key = `${norm(cp)}|${norm(entry.solucion)}`;
     if (!statusByKey.has(key)) statusByKey.set(key, []);
     statusByKey.get(key)!.unshift({ status: entry.status, fecha: entry.fecha });
+  }
+  // Seed inicial desde hoja maestra: sólo para soluciones sin entradas en la hoja Status.
+  for (const row of masterList) {
+    if (!row.status) continue;
+    const canonicalEntity = canonicalPartner(row.entity) ?? row.entity;
+    const key = `${norm(canonicalEntity)}|${norm(row.solucion)}`;
+    if (!statusByKey.has(key)) {
+      statusByKey.set(key, [{ status: row.status, fecha: "" }]);
+    }
   }
 
   // Índice tab → KpiRow como fallback cuando el nombre de solución difiere entre pestañas.
