@@ -28,12 +28,12 @@ export function Shell({
           <div className="flex items-center gap-4">
             <Link href="/dashboard" className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/Fe_logotipo_3_rgb_negro-07.png" alt="FE Consulting" className="h-[52px] w-auto" />
+              <img src="/Fe_logotipo_3_rgb_negro-07.png" alt="FE Consulting" className="h-[90px] w-auto" />
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500">
                   FE Consulting
                 </p>
-                <h1 className="text-base font-semibold text-gray-900">Programa Valor Pyme · BCI 2026</h1>
+                <h1 className="text-base font-semibold text-gray-900">Valor Pyme · BCI 2026</h1>
               </div>
             </Link>
             <span
@@ -56,6 +56,9 @@ export function Shell({
         )}
       </header>
       <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+      <footer className="border-t border-gray-200 bg-white py-4 text-center text-xs text-gray-400">
+        Hecha por FE Consulting para Valor Pyme
+      </footer>
     </div>
   );
 }
