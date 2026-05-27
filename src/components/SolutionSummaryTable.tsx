@@ -17,19 +17,19 @@ const CELL_BY_ESTADO: Record<Estado, string> = {
 };
 
 const EJE_HEADER_ROW: Record<string, string> = {
-  Capital: "bg-amber-100/70 border-amber-200",
-  Mercado: "bg-sky-100/70 border-sky-200",
-  Digitalización: "bg-indigo-100/70 border-indigo-200",
-  "Gestión y Talento": "bg-emerald-100/70 border-emerald-200",
-  Comunidad: "bg-violet-100/70 border-violet-200",
+  Capital: "bg-gold-100/70 border-gold-200",
+  Mercado: "bg-coral-100/70 border-coral-200",
+  Digitalización: "bg-brand-100/70 border-brand-200",
+  "Gestión y Talento": "bg-sand-200/70 border-sand-300",
+  Comunidad: "bg-coral-50 border-coral-100",
 };
 
 const EJE_HEADER_TEXT: Record<string, string> = {
-  Capital: "text-amber-800",
-  Mercado: "text-sky-800",
-  Digitalización: "text-indigo-800",
-  "Gestión y Talento": "text-emerald-800",
-  Comunidad: "text-violet-800",
+  Capital: "text-gold-700",
+  Mercado: "text-coral-700",
+  Digitalización: "text-brand-700",
+  "Gestión y Talento": "text-sand-700",
+  Comunidad: "text-coral-600",
 };
 
 function ejeRank(eje: string): number {

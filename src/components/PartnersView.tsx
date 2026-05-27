@@ -4,11 +4,11 @@ import { PartnerCard } from "./PartnerCard";
 import { PymeProjectionChart } from "./PymeProjectionChart";
 
 const EJE_BG: Record<string, string> = {
-  Capital: "bg-amber-50/40",
-  Mercado: "bg-sky-50/40",
-  Digitalización: "bg-indigo-50/40",
-  "Gestión y Talento": "bg-emerald-50/40",
-  Comunidad: "bg-violet-50/40",
+  Capital: "bg-gold-50/40",
+  Mercado: "bg-coral-50/40",
+  Digitalización: "bg-brand-50/40",
+  "Gestión y Talento": "bg-sand-100/40",
+  Comunidad: "bg-coral-50/20",
 };
 
 function ejeRank(eje: string): number {
