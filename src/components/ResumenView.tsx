@@ -4,26 +4,26 @@ import { EJES } from "@/lib/types";
 
 const EJE_COLOR: Record<string, string> = {
   Capital: "from-amber-50 to-white border-amber-200 text-amber-800",
-  Mercado: "from-emerald-50 to-white border-emerald-200 text-emerald-800",
-  Digitalización: "from-sky-50 to-white border-sky-200 text-sky-800",
-  "Gestión y Talento": "from-violet-50 to-white border-violet-200 text-violet-800",
-  Comunidad: "from-rose-50 to-white border-rose-200 text-rose-800",
+  Mercado: "from-sky-50 to-white border-sky-200 text-sky-800",
+  Digitalización: "from-indigo-50 to-white border-indigo-200 text-indigo-800",
+  "Gestión y Talento": "from-emerald-50 to-white border-emerald-200 text-emerald-800",
+  Comunidad: "from-violet-50 to-white border-violet-200 text-violet-800",
 };
 
 const EJE_HEADER_ROW: Record<string, string> = {
   Capital: "bg-amber-100/70 border-amber-200",
-  Mercado: "bg-emerald-100/70 border-emerald-200",
-  Digitalización: "bg-sky-100/70 border-sky-200",
-  "Gestión y Talento": "bg-violet-100/70 border-violet-200",
-  Comunidad: "bg-rose-100/70 border-rose-200",
+  Mercado: "bg-sky-100/70 border-sky-200",
+  Digitalización: "bg-indigo-100/70 border-indigo-200",
+  "Gestión y Talento": "bg-emerald-100/70 border-emerald-200",
+  Comunidad: "bg-violet-100/70 border-violet-200",
 };
 
 const EJE_HEADER_TEXT: Record<string, string> = {
   Capital: "text-amber-800",
-  Mercado: "text-emerald-800",
-  Digitalización: "text-sky-800",
-  "Gestión y Talento": "text-violet-800",
-  Comunidad: "text-rose-800",
+  Mercado: "text-sky-800",
+  Digitalización: "text-indigo-800",
+  "Gestión y Talento": "text-emerald-800",
+  Comunidad: "text-violet-800",
 };
 
 function ejeRank(eje: string): number {
