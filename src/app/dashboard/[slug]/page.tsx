@@ -244,6 +244,20 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-700">
             Etapas y tareas
           </h2>
+          <div className="mb-4 flex flex-wrap gap-4 rounded-xl border border-gray-200 bg-gray-50/60 px-5 py-3 text-xs text-gray-600">
+            <span className="font-semibold uppercase tracking-wider text-gray-400 self-center">Referencias</span>
+            {[
+              { abbr: "AP", label: "Área de Proyectos" },
+              { abbr: "MC", label: "Área de Marketing y Comunidad" },
+              { abbr: "ES", label: "Área de Estudios" },
+              { abbr: "MGN", label: "Multigremial Nacional" },
+            ].map(({ abbr, label }) => (
+              <span key={abbr} className="flex items-center gap-1.5">
+                <span className="rounded bg-gray-200 px-1.5 py-0.5 font-mono font-semibold text-gray-700">{abbr}</span>
+                <span className="text-gray-500">{label}</span>
+              </span>
+            ))}
+          </div>
           <div className="space-y-5">
             {detail.etapas.map((etapa, idx) => (
               <article
