@@ -68,6 +68,12 @@ export type PymeKpis = {
   pymeAcumMonth: number;
 };
 
+/** Entrada del log de status (hoja "Status" del Sheet principal). */
+export type StatusEntry = {
+  status: string;
+  fecha: string;
+};
+
 /** Resumen ejecutivo por solución de socio (tab 4 + KPIs_PYMEs). */
 export type SolutionSummary = PymeKpis & {
   socio: string;
@@ -79,6 +85,7 @@ export type SolutionSummary = PymeKpis & {
   proximoHito: string;
   fechaHito: string;
   comentarios: string;
+  statusHistory: StatusEntry[]; // más reciente primero
 };
 
 /** Solución entregada por un partner (KPIs_PYMEs_Partners). */
@@ -86,6 +93,7 @@ export type PartnerSummary = PymeKpis & {
   partner: string;
   solucion: string;
   slug: string;
+  statusHistory: StatusEntry[];
 };
 
 /** Detalle por solución (tabs Det_*). */

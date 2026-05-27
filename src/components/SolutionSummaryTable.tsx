@@ -39,7 +39,7 @@ export function SolutionSummaryTable({
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
+      <table className="w-full min-w-[1380px] border-separate border-spacing-0 text-sm">
         <thead>
           <tr className="bg-brand-700 text-white">
             {showSocio && (
@@ -64,6 +64,12 @@ export function SolutionSummaryTable({
             </th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">
               PYMEs · acum / meta 2026
+            </th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">
+              Status
+            </th>
+            <th className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">
+              Actualización
             </th>
           </tr>
         </thead>
@@ -151,6 +157,20 @@ export function SolutionSummaryTable({
                   )}
                 </td>
 
+                {/* Status más reciente */}
+                {(() => {
+                  const latest = s.statusHistory?.[0];
+                  return (
+                    <>
+                      <td className="border-t border-l border-gray-100 px-3 py-2 text-xs text-gray-700 max-w-[260px]">
+                        <span className="line-clamp-3">{latest?.status || "—"}</span>
+                      </td>
+                      <td className="border-t border-l border-gray-100 px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                        {latest?.fecha || "—"}
+                      </td>
+                    </>
+                  );
+                })()}
               </tr>
             );
           })}

@@ -8,6 +8,7 @@ import {
   type Tarea,
   type Estado,
   type PymeKpis,
+  type StatusEntry,
   ETAPAS,
 } from "./types";
 import { canonicalPartner, findDetTab, findSolutionByTab, solutionSlug, slugify } from "./solutions";
@@ -17,6 +18,7 @@ const CONSOLIDADO_TAB = "4. Consolidado (etapas x sol)";
 const KPIS_TAB = "KPIs_PYMEs";
 const KPIS_PARTNERS_TAB = "KPIs_PYMEs_Partners";
 const MASTER_TAB = "Lista correcta de nombres";
+const STATUS_TAB = "Status";
 const CACHE_TTL_MS = 30 * 1000;
 const MASTER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min — cambia poco
 
@@ -227,6 +229,7 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     `'${GANTT_TAB}'!A1:AT200`,
     `'${CONSOLIDADO_TAB}'!A1:L80`,
     `'${KPIS_TAB}'!A1:U60`,
+    `'${STATUS_TAB}'!A1:D2000`,
   ];
   if (samePartnersSheet) mainRanges.push(`'${KPIS_PARTNERS_TAB}'!A1:U80`);
 
@@ -243,10 +246,11 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
   const ganttValues = res.data.valueRanges?.[0]?.values ?? [];
   const consolidadoValues = res.data.valueRanges?.[1]?.values ?? [];
   const kpisValues = res.data.valueRanges?.[2]?.values ?? [];
+  const statusValues = res.data.valueRanges?.[3]?.values ?? [];
 
   let kpisPartnerValues: any[][];
   if (samePartnersSheet) {
-    kpisPartnerValues = res.data.valueRanges?.[3]?.values ?? [];
+    kpisPartnerValues = res.data.valueRanges?.[4]?.values ?? [];
   } else {
     // Sheet de partners separado ("Gestión de Partners — Valor Pyme 2026").
     const partnersRes = await sheets.spreadsheets.values.get({
@@ -285,6 +289,15 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
   // Si la hoja maestra está vacía (aún no configurada), no filtramos nada.
   const masterActive = masterList.length > 0;
 
+  // Índice de historial de status: norm(partner)|norm(solucion) → StatusEntry[] (más reciente primero)
+  const statusByKey = new Map<string, StatusEntry[]>();
+  for (const entry of parseStatusSheet(statusValues)) {
+    const cp = canonicalPartner(entry.partner) ?? entry.partner;
+    const key = `${norm(cp)}|${norm(entry.solucion)}`;
+    if (!statusByKey.has(key)) statusByKey.set(key, []);
+    statusByKey.get(key)!.unshift({ status: entry.status, fecha: entry.fecha });
+  }
+
   // Índice tab → KpiRow como fallback cuando el nombre de solución difiere entre pestañas.
   const kpisByTab = new Map<string, KpiRow>();
   for (const kpi of kpisBySlug.values()) {
@@ -305,9 +318,12 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
       const socio    = canonical?.entity  ?? s.socio;
       const solucion = canonical?.solucion ?? s.solucion;
 
-      if (!tabKpi || s.pymeMeta != null) return { ...s, socio, solucion, eje };
+      const statusKey = `${norm(socio)}|${norm(solucion)}`;
+      const statusHistory = statusByKey.get(statusKey) ?? [];
+
+      if (!tabKpi || s.pymeMeta != null) return { ...s, socio, solucion, eje, statusHistory };
       return {
-        ...s, socio, solucion, eje,
+        ...s, socio, solucion, eje, statusHistory,
         pymeMeta: tabKpi.kpis.pymeMeta,
         pymeUnit: tabKpi.kpis.pymeUnit,
         pymeSegmentos: tabKpi.kpis.pymeSegmentos,
@@ -330,10 +346,14 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     .map((p) => {
       const masterKey = `${norm(p.partner)}|${norm(p.solucion)}`;
       const canonical = masterNames.get(masterKey);
+      const partner  = canonical?.entity   ?? p.partner;
+      const solucion = canonical?.solucion ?? p.solucion;
+      const statusKey = `${norm(partner)}|${norm(solucion)}`;
       return {
         ...p,
-        partner:  canonical?.entity   ?? p.partner,
-        solucion: canonical?.solucion ?? p.solucion,
+        partner,
+        solucion,
+        statusHistory: statusByKey.get(statusKey) ?? [],
       };
     })
     .filter((p) => {
@@ -450,12 +470,51 @@ function parseKpiSheet(values: any[][], mode: "socio" | "partner"): Map<string, 
   return out;
 }
 
+function parseStatusSheet(values: any[][]): Array<{ partner: string; solucion: string; status: string; fecha: string }> {
+  if (!values.length) return [];
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(values.length, 3); i++) {
+    const row = (values[i] || []).map((c: any) => s(c).toLowerCase());
+    if (row.some((c: string) => c.includes("socio") || c.includes("partner")) &&
+        row.some((c: string) => c.includes("status")) &&
+        row.some((c: string) => c.includes("soluc"))) {
+      headerIdx = i; break;
+    }
+  }
+  if (headerIdx < 0) return [];
+  const header = (values[headerIdx] || []).map((c: any) => s(c).toLowerCase());
+  const findCol = (...cands: string[]) => {
+    for (const cand of cands) {
+      const idx = header.findIndex((h: string) => h.includes(cand));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+  const colPartner = findCol("socio", "partner");
+  const colSol     = findCol("soluc");
+  const colStatus  = findCol("status");
+  const colFecha   = findCol("fecha");
+  if (colPartner < 0 || colSol < 0 || colStatus < 0) return [];
+  const out: Array<{ partner: string; solucion: string; status: string; fecha: string }> = [];
+  for (let i = headerIdx + 1; i < values.length; i++) {
+    const row = values[i] || [];
+    const partner  = s(row[colPartner]);
+    const solucion = s(row[colSol]);
+    const status   = s(row[colStatus]);
+    const fecha    = colFecha >= 0 ? s(row[colFecha]) : "";
+    if (!partner || !solucion || !status) continue;
+    out.push({ partner, solucion, status, fecha });
+  }
+  return out;
+}
+
 function buildPartnerSummaries(values: any[][]): PartnerSummary[] {
   const map = parseKpiSheet(values, "partner");
   return Array.from(map.values()).map((r) => ({
     partner: r.entity,
     solucion: r.solucion,
     slug: r.slug,
+    statusHistory: [],
     ...r.kpis,
   }));
 }
@@ -628,6 +687,7 @@ function parseConsolidado(values: any[][], kpisBySlug: Map<string, KpiRow>): Sol
       proximoHito,
       fechaHito,
       comentarios,
+      statusHistory: [],
       eje: kpi?.kpis.eje ?? null,
       pymeMeta: kpi?.kpis.pymeMeta ?? null,
       pymeUnit: kpi?.kpis.pymeUnit ?? null,

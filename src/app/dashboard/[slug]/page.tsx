@@ -179,6 +179,37 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
         )}
       </div>
 
+      {summary && summary.statusHistory.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
+            Status
+          </h2>
+          {/* Status actual */}
+          <div className="rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4">
+            <div className="flex items-start justify-between gap-4">
+              <p className="text-sm text-gray-800">{summary.statusHistory[0].status}</p>
+              <span className="shrink-0 text-xs text-gray-400">{summary.statusHistory[0].fecha}</span>
+            </div>
+          </div>
+          {/* Historial */}
+          {summary.statusHistory.length > 1 && (
+            <div className="mt-3 space-y-0 rounded-xl border border-gray-200 bg-white overflow-hidden">
+              <p className="border-b border-gray-100 bg-gray-50/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                Historial
+              </p>
+              <ul className="divide-y divide-gray-100">
+                {summary.statusHistory.slice(1).map((entry, i) => (
+                  <li key={i} className="flex items-start gap-4 px-4 py-3">
+                    <span className="mt-0.5 shrink-0 text-xs text-gray-400 w-20">{entry.fecha}</span>
+                    <p className="text-xs text-gray-600">{entry.status}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
       {detail && detail.weeks.length > 0 && detail.etapas.length > 0 && (
         <section className="mt-8">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-700">
