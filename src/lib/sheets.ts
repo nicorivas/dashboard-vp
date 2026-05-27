@@ -152,7 +152,11 @@ export async function fetchMasterList(force = false): Promise<MasterRow[]> {
       dateTimeRenderOption: "FORMATTED_STRING",
     });
     const values = res.data.values ?? [];
+    console.log("[fetchMasterList] filas leídas:", values.length);
+    if (values.length > 0) console.log("[fetchMasterList] primera fila:", JSON.stringify(values[0]));
+    if (values.length > 1) console.log("[fetchMasterList] segunda fila:", JSON.stringify(values[1]));
     const data = parseMasterList(values);
+    console.log("[fetchMasterList] filas parseadas:", data.length);
     masterCache = { data, expiresAt: Date.now() + MASTER_CACHE_TTL_MS };
     return data;
   } catch (err) {
@@ -168,12 +172,17 @@ function parseMasterList(values: any[][]): MasterRow[] {
   let headerIdx = -1;
   for (let i = 0; i < Math.min(values.length, 5); i++) {
     const row = (values[i] || []).map((c: any) => s(c).toLowerCase());
+    console.log(`[parseMasterList] fila ${i}:`, JSON.stringify(row));
     const hasTipoOrEntity = row.some((c: string) => c === "tipo" || c === "socio" || c === "partner" || c.startsWith("nombre"));
     const hasSolucion = row.some((c: string) => c.startsWith("soluc"));
     const hasMostrar = row.some((c: string) => c.startsWith("mostrar"));
+    console.log(`[parseMasterList] fila ${i} — entidad:${hasTipoOrEntity} soluc:${hasSolucion} mostrar:${hasMostrar}`);
     if (hasTipoOrEntity && hasSolucion && hasMostrar) { headerIdx = i; break; }
   }
-  if (headerIdx < 0) return [];
+  if (headerIdx < 0) {
+    console.warn("[parseMasterList] No se encontró fila de headers");
+    return [];
+  }
 
   const header = (values[headerIdx] || []).map((c: any) => s(c).toLowerCase());
   const findCol = (...cands: string[]) => {
