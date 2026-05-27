@@ -28,7 +28,7 @@ export function Shell({
           <div className="flex items-center gap-4">
             <Link href="/dashboard" className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/Fe_logotipo_2_rgb_negro-07.png" alt="FE Consulting" className="h-9 w-auto" />
+              <img src="/Fe_logotipo_3_rgb_negro-07.png" alt="FE Consulting" className="h-[52px] w-auto" />
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500">
                   FE Consulting
