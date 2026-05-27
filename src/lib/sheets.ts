@@ -270,8 +270,11 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
   const masterHidden   = new Set<string>(); // "entity|solucion" normalizado → oculto
   const masterNames    = new Map<string, { entity: string; solucion: string }>(); // norm key → canonical names
   for (const row of masterList) {
-    const key = `${norm(row.entity)}|${norm(row.solucion)}`;
-    masterNames.set(key, { entity: row.entity, solucion: row.solucion });
+    // Canonicalizar el nombre del socio/partner para que coincida con lo que
+    // devuelven parseConsolidado y buildPartnerSummaries (que también canonicalizan).
+    const canonicalEntity = canonicalPartner(row.entity) ?? row.entity;
+    const key = `${norm(canonicalEntity)}|${norm(row.solucion)}`;
+    masterNames.set(key, { entity: canonicalEntity, solucion: row.solucion });
     if (row.mostrar) masterVisible.add(key);
     else masterHidden.add(key);
   }
