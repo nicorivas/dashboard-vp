@@ -93,7 +93,7 @@ export function ResumenView({
     <>
       <div className="mb-6">
         <p className="text-sm font-medium text-brand-600">{user.label}</p>
-        <h1 className="text-2xl font-semibold text-gray-900">Resumen del programa</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Resumen de Valor Pyme</h1>
         <p className="mt-1 text-sm text-gray-500">
           PYMEs adquiridas y meta 2026 — vista consolidada por ruta, socio y partner.
         </p>
@@ -138,7 +138,7 @@ export function ResumenView({
           <div className="flex flex-wrap items-baseline justify-between gap-4">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-700">
-                Total programa · acum / meta 2026
+                Total · acum / meta 2026
               </p>
               <p className="mt-2">
                 <span className="text-4xl font-semibold tabular-nums text-brand-800">

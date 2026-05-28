@@ -62,7 +62,7 @@ export function PartnersView({
     <>
       <div className="mb-6">
         <p className="text-sm font-medium text-brand-600">{user.label}</p>
-        <h1 className="text-2xl font-semibold text-gray-900">Partners del programa</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Partners de Valor Pyme</h1>
         <p className="mt-1 text-sm text-gray-500">
           Soluciones aportadas por partners de Valor Pyme — ordenadas por ruta. Edita la pestaña{" "}
           <span className="font-medium">KPIs_PYMEs_Partners</span> del Sheet para actualizar metas y

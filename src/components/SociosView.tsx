@@ -35,12 +35,12 @@ export function SociosView({
       <div className="mb-6">
         <p className="text-sm font-medium text-brand-600">{user.label}</p>
         <h1 className="text-2xl font-semibold text-gray-900">
-          {isAdmin ? "Socios del programa" : user.partner}
+          {isAdmin ? "Socios de Valor Pyme" : user.partner}
         </h1>
         <p className="mt-1 text-sm text-gray-500">
           {isAdmin
-            ? "Cartera completa de soluciones de los socios del programa Valor Pyme 2026."
-            : "Estas son las soluciones del programa en las que participas."}
+            ? "Cartera completa de soluciones de los socios de Valor Pyme 2026."
+            : "Estas son las soluciones de Valor Pyme en las que participas."}
         </p>
       </div>
 
