@@ -99,9 +99,6 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
               {meta.partner}
             </p>
             <h1 className="mt-1 text-2xl font-semibold text-gray-900">{meta.solucion}</h1>
-            <p className="mt-1 text-xs text-gray-500">
-              Responsable FE: {detail?.responsableFE || "—"}
-            </p>
           </div>
           <div className="text-right">
             <p className="text-4xl font-semibold tabular-nums text-gray-900">
