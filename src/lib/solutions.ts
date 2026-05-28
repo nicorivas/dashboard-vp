@@ -40,8 +40,8 @@ export function canonicalPartner(name: string): string | null {
  */
 const SOLUTION_TO_TAB_RAW: Array<[partner: string, solution: string, tab: string]> = [
   ["BCI", "Cuenta Digital", "Det_BCI_CtaDigital"],
-  ["BCI", "Modelo Nace Emprendimiento", "Det_BCI_Nace"],
   ["BCI", "Banca Nace", "Det_BCI_Nace"],
+  ["BCI", "Modelo Nace Emprendimiento", "Det_BCI_Nace"],
   ["Walmart", "Marketplace", "Det_Walmart_Marketplace"],
   ["Blue Express", "Cupón descuento despacho", "Det_BlueEx_Cupon"],
   ["Defontana", "Contabilidad Gratuita / ERP", "Det_Defontana_ERP"],
@@ -49,11 +49,11 @@ const SOLUTION_TO_TAB_RAW: Array<[partner: string, solution: string, tab: string
   ["Microsoft", "Elevate", "Det_MSFT_Elevate"],
   ["Microsoft", "Agente Copilot", "Det_MSFT_Copilot"],
   ["Microsoft", "Ciberseguridad", "Det_MSFT_Ciber"],
-  ["OTIC CChC", "Ruta Inclusión financiera", "Det_OTIC_Inclusion"],
   ["OTIC CChC", "Programa inclusión financiera", "Det_OTIC_Inclusion"],
+  ["OTIC CChC", "Ruta Inclusión financiera", "Det_OTIC_Inclusion"],
   ["OTIC CChC", "Academia Pyme", "Det_OTIC_Academia"],
-  ["OTIC CChC", "Programa de Desarrollo de Proveedores", "Det_OTIC_Proveedores"],
   ["OTIC CChC", "Programa proveedores por Chile", "Det_OTIC_Proveedores"],
+  ["OTIC CChC", "Programa de Desarrollo de Proveedores", "Det_OTIC_Proveedores"],
   ["FACEA UC", "Pyme UC", "Det_FACEA UC_PymeUC"],
   ["Multigremial Nacional", "Academia Emprendedores", "Det_MGN_AcadEmpren"],
   ["Multigremial Nacional", "Academia de Emprendedores", "Det_MGN_AcadEmpren"],
