@@ -172,7 +172,7 @@ export function ResumenView({
               {
                 key: "trafico",
                 title: "Tráfico",
-                desc: "Pymes que entran a valorpyme.cl",
+                desc: "Pymes que entran a Valorpyme.cl",
                 value: metricas.trafico,
               },
               {
