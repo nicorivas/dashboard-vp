@@ -35,6 +35,7 @@ const EMAIL_TO_PARTNER: Record<string, string> = {
   // así puedes tener cuentas de prueba "como empresa" en dominios que normalmente
   // serían admin (ej. bci.cl).
   "prueba.bci@bci.cl": "BCI",
+  "gonzalo.soto@bci.cl": "BCI",
 };
 
 export function resolveUser(email: string | null | undefined): ResolvedUser | null {
