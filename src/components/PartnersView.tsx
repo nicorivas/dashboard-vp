@@ -64,7 +64,7 @@ export function PartnersView({
         <p className="text-sm font-medium text-brand-600">{user.label}</p>
         <h1 className="text-2xl font-semibold text-gray-900">Partners del programa</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Soluciones aportadas por partners de Valor Pyme — ordenadas por eje. Edita la pestaña{" "}
+          Soluciones aportadas por partners de Valor Pyme — ordenadas por ruta. Edita la pestaña{" "}
           <span className="font-medium">KPIs_PYMEs_Partners</span> del Sheet para actualizar metas y
           acumulados mensuales.
         </p>
@@ -104,7 +104,7 @@ export function PartnersView({
                           className={`border-t-2 border-gray-200 ${EJE_BG[eje] ?? "bg-gray-50/40"}`}
                         >
                           <td colSpan={2} className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-700">
-                            Eje · {eje}
+                            Ruta · {eje}
                           </td>
                           <td className="px-3 py-2 text-right text-xs font-semibold tabular-nums text-gray-700">
                             {ejeTotals.acum > 0 ? formatNumber(ejeTotals.acum) : "—"}
@@ -188,7 +188,7 @@ export function PartnersView({
       {/* Cards agrupadas por eje */}
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
-          Partners por eje
+          Partners por ruta
         </h2>
         <div className="space-y-8">
           {groupKeys.map((eje) => (

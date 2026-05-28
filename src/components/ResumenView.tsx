@@ -95,14 +95,14 @@ export function ResumenView({
         <p className="text-sm font-medium text-brand-600">{user.label}</p>
         <h1 className="text-2xl font-semibold text-gray-900">Resumen del programa</h1>
         <p className="mt-1 text-sm text-gray-500">
-          PYMEs adquiridas y meta 2026 — vista consolidada por eje, socio y partner.
+          PYMEs adquiridas y meta 2026 — vista consolidada por ruta, socio y partner.
         </p>
       </div>
 
       {/* KPIs por eje */}
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
-          PYMEs por eje · acumulado / meta 2026
+          PYMEs por ruta · acumulado / meta 2026
         </h2>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {EJES.filter((eje) => (byEje.get(eje)?.count ?? 0) > 0).map((eje) => {
@@ -192,7 +192,7 @@ export function ResumenView({
                         className={`border-t-2 ${ejeRowCls}`}
                       >
                         <td colSpan={3} className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider ${ejeTextCls}`}>
-                          Eje · {r.eje}
+                          Ruta · {r.eje}
                         </td>
                         <td className={`px-3 py-2 text-right text-xs font-semibold tabular-nums ${ejeTextCls}`}>
                           {ejeTotals.acum > 0 ? formatNumber(ejeTotals.acum) : "—"}

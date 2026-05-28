@@ -120,7 +120,7 @@ export function SolutionSummaryTable({
                       colSpan={totalCols}
                       className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider ${textCls}`}
                     >
-                      Eje · {eje}
+                      Ruta · {eje}
                     </td>
                   </tr>
                 );
