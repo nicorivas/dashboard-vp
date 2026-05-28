@@ -431,7 +431,7 @@ function parseKpiSheet(values: any[][], mode: "socio" | "partner"): Map<string, 
     }
     return -1;
   };
-  const colEje = findCol("eje");
+  const colEje = findCol("eje", "ruta");
   const colUnit = findCol("unidad");
   const colMeta = findCol("meta 2026", "meta");
   const colSegm = findCol("segmentos");
@@ -594,7 +594,7 @@ function parseGantt(values: any[][]): {
     }
     return -1;
   };
-  const colEje = findCol("eje");
+  const colEje = findCol("eje", "ruta");
   const colSocio = findCol("socio");
   const colSol = findCol("soluc");
   const colEtapa = findCol("etapa");
