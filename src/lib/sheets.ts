@@ -835,6 +835,78 @@ function parseDetail(tab: string, values: any[][]): SolutionDetail {
   };
 }
 
+export type MetricasData = {
+  fecha: string;
+  trafico: number | null;
+  alcance: number | null;
+  adquisicion: number | null;
+  adopcion: number | null;
+};
+
+function parseDateCL(str: string): Date | null {
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+}
+
+export async function fetchMetricas(): Promise<MetricasData | null> {
+  try {
+    const sheets = sheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: getSheetId(),
+      range: "Metricas!A1:E100",
+      valueRenderOption: "UNFORMATTED_VALUE",
+      dateTimeRenderOption: "FORMATTED_STRING",
+    });
+    const values = res.data.values ?? [];
+    if (values.length < 2) return null;
+
+    const header = (values[0] || []).map((c: unknown) => s(c).toLowerCase());
+    const findCol = (...cands: string[]): number => {
+      for (const cand of cands) {
+        const idx = header.findIndex((h: string) => h.includes(cand));
+        if (idx >= 0) return idx;
+      }
+      return -1;
+    };
+
+    const colFecha = findCol("fecha");
+    const colTrafico = findCol("tr");
+    const colAlcance = findCol("alcance");
+    const colAdquisicion = findCol("adquisici");
+    const colAdopcion = findCol("adopci");
+
+    // Find the row with the most recent date
+    let bestDate: Date | null = null;
+    let bestRow: unknown[] | null = null;
+
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i] || [];
+      const fechaStr = colFecha >= 0 ? s(row[colFecha]) : "";
+      if (!fechaStr) continue;
+      const d = parseDateCL(fechaStr);
+      if (!d) continue;
+      if (!bestDate || d > bestDate) {
+        bestDate = d;
+        bestRow = row;
+      }
+    }
+
+    if (!bestRow || !bestDate) return null;
+
+    return {
+      fecha: colFecha >= 0 ? s(bestRow[colFecha]) : "",
+      trafico: colTrafico >= 0 ? parseNumberOrNull(bestRow[colTrafico]) : null,
+      alcance: colAlcance >= 0 ? parseNumberOrNull(bestRow[colAlcance]) : null,
+      adquisicion: colAdquisicion >= 0 ? parseNumberOrNull(bestRow[colAdquisicion]) : null,
+      adopcion: colAdopcion >= 0 ? parseNumberOrNull(bestRow[colAdopcion]) : null,
+    };
+  } catch (err) {
+    console.warn("[fetchMetricas] No se pudo leer la pestaña Metricas.", err);
+    return null;
+  }
+}
+
 export function clearAllCache() {
   aggregateCache = null;
   detailCache.clear();

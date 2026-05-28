@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { fetchAggregate } from "@/lib/sheets";
+import { fetchAggregate, fetchMetricas } from "@/lib/sheets";
 import { resolveUser, filterGanttForUser, filterSummariesForUser } from "@/lib/partner-mapping";
 import { Shell } from "@/components/Shell";
 import { ResumenView } from "@/components/ResumenView";
@@ -43,14 +43,16 @@ export default async function DashboardPage() {
   let partnerSummaries: Awaited<ReturnType<typeof fetchAggregate>>["partnerSummaries"] = [];
   let fetchedAt = 0;
   let errorMsg: string | null = null;
+  let metricas: Awaited<ReturnType<typeof fetchMetricas>> = null;
 
   try {
-    const agg = await fetchAggregate();
+    const [agg, met] = await Promise.all([fetchAggregate(), fetchMetricas()]);
     weeks = agg.weeks;
     ganttRows = filterGanttForUser(agg.ganttRows, user);
     summaries = filterSummariesForUser(agg.summaries, user);
     partnerSummaries = agg.partnerSummaries;
     fetchedAt = agg.fetchedAt;
+    metricas = met;
   } catch (err) {
     errorMsg = err instanceof Error ? err.message : "Error leyendo el Sheet";
   }
@@ -66,7 +68,7 @@ export default async function DashboardPage() {
 
       {/* Admin: Resumen agregado. Partner: vista de sus soluciones (filtradas). */}
       {user.role === "admin" ? (
-        <ResumenView user={user} summaries={summaries} partnerSummaries={partnerSummaries} />
+        <ResumenView user={user} summaries={summaries} partnerSummaries={partnerSummaries} metricas={metricas} />
       ) : (
         <SociosView user={user} summaries={summaries} ganttRows={ganttRows} weeks={weeks} />
       )}

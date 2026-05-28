@@ -1,6 +1,7 @@
 import { totalsByEje, totalPymeAcum, totalPymeMeta } from "@/lib/pyme-targets";
 import type { PartnerSummary, ResolvedUser, SolutionSummary } from "@/lib/types";
 import { EJES } from "@/lib/types";
+import type { MetricasData } from "@/lib/sheets";
 
 const EJE_COLOR: Record<string, string> = {
   Capital: "from-amber-50 to-white border-amber-200 text-amber-800",
@@ -53,10 +54,12 @@ export function ResumenView({
   user,
   summaries,
   partnerSummaries,
+  metricas,
 }: {
   user: ResolvedUser;
   summaries: SolutionSummary[];
   partnerSummaries: PartnerSummary[];
+  metricas: MetricasData | null;
 }) {
   const all = [...summaries, ...partnerSummaries];
   const byEje = totalsByEje(all);
@@ -152,12 +155,64 @@ export function ResumenView({
               </p>
             </div>
             <div className="text-right text-xs text-gray-500">
-              <p>{summaries.length} soluciones de socios</p>
-              <p>{partnerSummaries.length} soluciones de partners</p>
+              <p>{new Set(summaries.map((s) => s.socio)).size} socios · {summaries.length} soluciones</p>
+              <p>{new Set(partnerSummaries.map((p) => p.partner)).size} partners · {partnerSummaries.length} soluciones</p>
             </div>
           </div>
         </div>
       </section>
+
+      {metricas && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
+            Métricas Valor Pyme
+          </h2>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {[
+              {
+                key: "trafico",
+                title: "Tráfico",
+                desc: "Pymes que entran a valorpyme.cl",
+                value: metricas.trafico,
+              },
+              {
+                key: "alcance",
+                title: "Alcance",
+                desc: "Pymes que se registran en Valorpyme.cl",
+                value: metricas.alcance,
+              },
+              {
+                key: "adquisicion",
+                title: "Adquisición",
+                desc: "Acumulada de Pymes que se registran en las soluciones",
+                value: metricas.adquisicion,
+              },
+              {
+                key: "adopcion",
+                title: "Adopción",
+                desc: "Pymes que usan las soluciones activamente",
+                value: metricas.adopcion,
+              },
+            ].map((m) => (
+              <div
+                key={m.key}
+                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                  {m.title}
+                </p>
+                <p className="mt-0.5 text-[11px] text-gray-400">{m.desc}</p>
+                <p className="mt-3 text-3xl font-semibold tabular-nums text-gray-900">
+                  {m.value != null ? formatNumber(m.value) : "—"}
+                </p>
+                <p className="mt-1 text-[10px] uppercase tracking-wider text-gray-400">
+                  Actualizado {metricas.fecha}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Tabla por solución */}
       <section>
