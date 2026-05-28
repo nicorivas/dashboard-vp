@@ -284,9 +284,6 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
                           <th className="px-4 py-2 text-left font-medium">Estado</th>
                           <th className="px-4 py-2 text-left font-medium">Inicio</th>
                           <th className="px-4 py-2 text-left font-medium">Fin</th>
-                          {user.role !== "partner" && (
-                            <th className="px-4 py-2 text-left font-medium">Comentarios</th>
-                          )}
                         </tr>
                       </thead>
                       <tbody>
@@ -303,9 +300,6 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
                             <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-500">
                               {t.fin || "—"}
                             </td>
-                            {user.role !== "partner" && (
-                              <td className="px-4 py-2 text-xs text-gray-500">{t.comentarios || ""}</td>
-                            )}
                           </tr>
                         ))}
                       </tbody>
