@@ -4,11 +4,19 @@ import { PartnerCard } from "./PartnerCard";
 import { PymeProjectionChart } from "./PymeProjectionChart";
 
 const EJE_BG: Record<string, string> = {
-  Capital: "bg-amber-50/40",
-  Mercado: "bg-sky-50/40",
-  Digitalización: "bg-rose-50/40",
-  "Gestión y Talento": "bg-emerald-50/40",
-  Comunidad: "bg-violet-50/40",
+  Capital: "bg-amber-100/70 border-amber-200",
+  Mercado: "bg-sky-100/70 border-sky-200",
+  Digitalización: "bg-rose-100/70 border-rose-200",
+  "Gestión y Talento": "bg-emerald-100/70 border-emerald-200",
+  Comunidad: "bg-violet-100/70 border-violet-200",
+};
+
+const EJE_TEXT: Record<string, string> = {
+  Capital: "text-amber-800",
+  Mercado: "text-sky-800",
+  Digitalización: "text-rose-800",
+  "Gestión y Talento": "text-emerald-800",
+  Comunidad: "text-violet-800",
 };
 
 function ejeRank(eje: string): number {
@@ -46,7 +54,7 @@ export function PartnersView({
     if (p.pymeMeta != null) t.meta += p.pymeMeta;
   }
 
-  // Cards agrupadas por eje
+  // Cards agrupadas por eje — incluye actores adicionales en sus propios grupos
   const groups = new Map<string, PartnerSummary[]>();
   for (const p of partnerSummaries) {
     const key = p.eje?.trim() || "Sin eje";
@@ -64,9 +72,7 @@ export function PartnersView({
         <p className="text-sm font-medium text-brand-600">{user.label}</p>
         <h1 className="text-2xl font-semibold text-gray-900">Partners de Valor Pyme</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Soluciones aportadas por partners de Valor Pyme — ordenadas por ruta. Edita la pestaña{" "}
-          <span className="font-medium">KPIs_PYMEs_Partners</span> del Sheet para actualizar metas y
-          acumulados mensuales.
+          Cartera completa de soluciones de los partners de Valor Pyme 2026.
         </p>
       </div>
 
@@ -84,7 +90,7 @@ export function PartnersView({
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider">Solución</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider">Acumulado</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider">Meta 2026</th>
-                  <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider">% Avance</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">% Avance Meta</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider">Status</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">Actualización</th>
                 </tr>
@@ -101,9 +107,9 @@ export function PartnersView({
                       out.push(
                         <tr
                           key={`hdr-${eje}`}
-                          className={`border-t-2 border-gray-200 ${EJE_BG[eje] ?? "bg-gray-50/40"}`}
+                          className={`border-t-2 ${EJE_BG[eje] ?? "bg-gray-50/40 border-gray-200"}`}
                         >
-                          <td colSpan={2} className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-700">
+                          <td colSpan={2} className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider ${EJE_TEXT[eje] ?? "text-gray-700"}`}>
                             Ruta · {eje}
                           </td>
                           <td className="px-3 py-2 text-right text-xs font-semibold tabular-nums text-gray-700">
@@ -124,6 +130,31 @@ export function PartnersView({
                     const meta = r.pymeMeta ?? 0;
                     const acum = r.pymeAcum ?? 0;
                     const pct = meta > 0 ? Math.round((acum / meta) * 100) : 0;
+                    // Co-actor rows
+                    for (const actor of r.actoresAdicionales ?? []) {
+                      out.push(
+                        <tr key={`coactor-${actor}-${r.slug}`} className="border-t border-gray-100 bg-gray-50/30 hover:bg-gray-50/70">
+                          <td className="px-3 py-2 text-xs text-gray-500">
+                            <span>{actor}</span>
+                            <p className="text-[9px] text-gray-400">participa en solución de {r.partner}</p>
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-500">{r.solucion}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-500">
+                            {r.pymeAcum != null && r.pymeAcum > 0 ? formatNumber(r.pymeAcum) : "—"}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-500">
+                            {r.pymeMeta != null && r.pymeMeta > 0 ? formatNumber(r.pymeMeta) : "—"}
+                          </td>
+                          <td className="px-3 py-2 text-right text-xs text-gray-400 italic">compartida</td>
+                          <td className="border-l border-gray-100 px-3 py-2 text-xs text-gray-500 max-w-[260px]">
+                            <span className="line-clamp-3">{r.statusHistory?.[0]?.status || "—"}</span>
+                          </td>
+                          <td className="border-l border-gray-100 px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                            {r.statusHistory?.[0]?.fecha || "—"}
+                          </td>
+                        </tr>
+                      );
+                    }
                     out.push(
                       <tr key={r.slug} className="border-t border-gray-100 hover:bg-gray-50/70">
                         <td className="px-3 py-2 text-xs text-gray-700">{r.partner}</td>

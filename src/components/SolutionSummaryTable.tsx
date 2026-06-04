@@ -12,6 +12,7 @@ const CELL_BY_ESTADO: Record<Estado, string> = {
   "En curso": "bg-emerald-100/80 text-emerald-800",
   Terminado: "bg-blue-100/80 text-blue-800",
   Pendiente: "bg-gray-50 text-gray-500",
+  "No iniciado": "bg-gray-50 text-gray-400",
   "No aplica": "bg-gray-50 text-gray-300",
   "": "bg-gray-50 text-gray-400",
 };
@@ -65,8 +66,8 @@ export function SolutionSummaryTable({
   });
 
   // Total de columnas para colSpan del encabezado de eje:
-  // (Socio?) + Solución + 5 etapas + Avance + PYMEs + Status + Actualización
-  const totalCols = (showSocio ? 1 : 0) + 1 + ETAPAS.length + 1 + 1 + 1 + 1;
+  // (Socio?) + Solución + 5 etapas + Avance Gantt + PYMEs + % Avance Meta + Status + Actualización
+  const totalCols = (showSocio ? 1 : 0) + 1 + ETAPAS.length + 1 + 1 + 1 + 1 + 1;
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -90,11 +91,14 @@ export function SolutionSummaryTable({
                 <div className="leading-tight">{ETAPA_LABELS[e]}</div>
               </th>
             ))}
-            <th className="px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wider">
-              % Avance
+            <th className="px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">
+              % Avance Gantt
             </th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">
               PYMEs · acum / meta 2026
+            </th>
+            <th className="px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">
+              % Avance Meta
             </th>
             <th className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">
               Status
@@ -129,14 +133,57 @@ export function SolutionSummaryTable({
               const meta = s.pymeMeta;
               const acum = s.pymeAcum;
               const pct = meta != null && meta > 0 && acum != null ? Math.min(100, (acum / meta) * 100) : 0;
+
+              // Co-actor rows (same data, different entity)
+              for (const actor of s.actoresAdicionales ?? []) {
+                rows.push(
+                  <tr key={`coactor-${actor}-${s.slug}`} className="border-t border-gray-100 bg-gray-50/30 transition hover:bg-gray-50/70">
+                    {showSocio && (
+                      <td className="sticky left-0 z-[1] border-t border-gray-100 bg-gray-50/60 px-3 py-2 text-xs text-gray-500">
+                        <span className="whitespace-nowrap">{actor}</span>
+                        <p className="text-[9px] text-gray-400">participa en solución de {s.socio}</p>
+                      </td>
+                    )}
+                    <td className="border-t border-gray-100 px-3 py-2 text-sm font-medium text-gray-500">{s.solucion}</td>
+                    {s.etapas.map((e) => (
+                      <td key={e.etapa} className={`border-t border-l border-gray-100 px-2 py-2 text-center text-[11px] font-medium ${CELL_BY_ESTADO[e.estado] ?? CELL_BY_ESTADO[""]}`}>
+                        {e.estado || "—"}
+                      </td>
+                    ))}
+                    <td className="border-t border-l border-gray-100 px-3 py-2 text-right">
+                      <span className={`text-sm font-semibold tabular-nums ${avanceColor(s.avance)}`}>{s.avance}%</span>
+                    </td>
+                    <td className="border-t border-l border-gray-100 px-3 py-2 text-xs text-gray-400">
+                      <span className="text-[10px] italic">compartida con {s.socio}</span>
+                    </td>
+                    <td className="border-t border-l border-gray-100 px-3 py-2 text-right text-xs text-gray-400 italic">compartida</td>
+                    <td className="border-t border-l border-gray-100 px-3 py-2 text-xs text-gray-500 max-w-[260px]">
+                      <span className="line-clamp-3">{s.statusHistory?.[0]?.status || "—"}</span>
+                    </td>
+                    <td className="border-t border-l border-gray-100 px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                      {s.statusHistory?.[0]?.fecha || "—"}
+                    </td>
+                  </tr>
+                );
+              }
+
               rows.push(
                 <tr
                   key={s.slug}
                   className="border-t border-gray-100 transition hover:bg-gray-50/70"
                 >
                   {showSocio && (
-                    <td className="sticky left-0 z-[1] whitespace-nowrap border-t border-gray-100 bg-white px-3 py-2 text-xs font-medium text-gray-700">
-                      {s.socio}
+                    <td className="sticky left-0 z-[1] border-t border-gray-100 bg-white px-3 py-2 text-xs font-medium text-gray-700">
+                      <span className="whitespace-nowrap">{s.socio}</span>
+                      {s.actoresAdicionales && s.actoresAdicionales.length > 0 && (
+                        <div className="mt-0.5 flex flex-wrap gap-0.5">
+                          {s.actoresAdicionales.map((a) => (
+                            <span key={a} className="inline-flex items-center rounded-full bg-brand-50 px-1.5 py-0.5 text-[9px] font-medium text-brand-700 whitespace-nowrap">
+                              + {a}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                   )}
                   <td className="border-t border-gray-100 px-3 py-2">
@@ -203,6 +250,16 @@ export function SolutionSummaryTable({
                       </div>
                     ) : (
                       <span className="text-xs text-gray-400">— / por definir</span>
+                    )}
+                  </td>
+
+                  <td className="border-t border-l border-gray-100 px-3 py-2 text-right">
+                    {meta != null && acum != null ? (
+                      <span className={`text-sm font-semibold tabular-nums ${avanceColor(Math.round(pct))}`}>
+                        {Math.round(pct)}%
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
 

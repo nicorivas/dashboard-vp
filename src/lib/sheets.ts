@@ -9,9 +9,10 @@ import {
   type Estado,
   type PymeKpis,
   type StatusEntry,
+  type EvalSemana,
   ETAPAS,
 } from "./types";
-import { canonicalPartner, findDetTab, findSolutionByTab, solutionSlug, slugify } from "./solutions";
+import { canonicalPartner, canonicalSolutionName, findDetTab, findSolutionByTab, solutionSlug, slugify } from "./solutions";
 
 const GANTT_TAB = "3. Gantt por solución";
 const CONSOLIDADO_TAB = "4. Consolidado (etapas x sol)";
@@ -37,6 +38,7 @@ export type MasterRow = {
   solucion: string; // nombre canónico de la solución
   mostrar: boolean; // si=true, no=false
   status: string | null; // status inicial desde la hoja maestra
+  actorAdicional: string | null; // columna "+1": actor extra que también ve esta solución
 };
 
 let aggregateCache: { data: AggregateData; expiresAt: number } | null = null;
@@ -114,6 +116,7 @@ function parseEstado(raw: string): Estado {
   const low = e.toLowerCase();
   if (low.includes("curso")) return "En curso";
   if (low.includes("term") || low.includes("listo") || low.includes("comple")) return "Terminado";
+  if (low.includes("no inic")) return "No iniciado";
   if (low.includes("pend")) return "Pendiente";
   if (low.includes("no aplica") || low === "n/a") return "No aplica";
   return e as Estado;
@@ -187,11 +190,12 @@ function parseMasterList(values: any[][]): MasterRow[] {
     return -1;
   };
 
-  const colTipo    = findCol("tipo");
-  const colEntity  = findCol("socio", "partner", "nombre");
-  const colSol     = findCol("soluc");
-  const colMostrar = findCol("mostrar");
-  const colStatus  = findCol("status");
+  const colTipo         = findCol("tipo");
+  const colEntity       = findCol("socio", "partner", "nombre");
+  const colSol          = findCol("soluc");
+  const colMostrar      = findCol("mostrar");
+  const colStatus       = findCol("status");
+  const colActorAdicional = findCol("actor adicional", "adicional");
 
   if (colEntity < 0 || colSol < 0 || colMostrar < 0) return [];
 
@@ -210,8 +214,9 @@ function parseMasterList(values: any[][]): MasterRow[] {
     const mostrarRaw = s(row[colMostrar]).toLowerCase();
     const mostrar = mostrarRaw === "si" || mostrarRaw === "sí" || mostrarRaw === "yes" || mostrarRaw === "true";
     const status = colStatus >= 0 ? s(row[colStatus]) || null : null;
+    const actorAdicional = colActorAdicional >= 0 ? s(row[colActorAdicional]) || null : null;
 
-    out.push({ tipo, entity, solucion, mostrar, status });
+    out.push({ tipo, entity, solucion, mostrar, status, actorAdicional });
   }
   return out;
 }
@@ -279,14 +284,21 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
   const masterVisible  = new Set<string>(); // "entity|solucion" normalizado → visible
   const masterHidden   = new Set<string>(); // "entity|solucion" normalizado → oculto
   const masterNames    = new Map<string, { entity: string; solucion: string }>(); // norm key → canonical names
+  // norm(entity)|norm(solucion) → list of additional actor names (canonical)
+  const actoresAdicionalesByKey = new Map<string, string[]>();
   for (const row of masterList) {
     // Canonicalizar el nombre del socio/partner para que coincida con lo que
     // devuelven parseConsolidado y buildPartnerSummaries (que también canonicalizan).
     const canonicalEntity = canonicalPartner(row.entity) ?? row.entity;
     const key = `${norm(canonicalEntity)}|${norm(row.solucion)}`;
-    masterNames.set(key, { entity: canonicalEntity, solucion: row.solucion });
+    masterNames.set(key, { entity: canonicalEntity, solucion: canonicalSolutionName(row.solucion) });
     if (row.mostrar) masterVisible.add(key);
     else masterHidden.add(key);
+    if (row.actorAdicional) {
+      const canonicalActor = canonicalPartner(row.actorAdicional) ?? row.actorAdicional;
+      if (!actoresAdicionalesByKey.has(key)) actoresAdicionalesByKey.set(key, []);
+      actoresAdicionalesByKey.get(key)!.push(canonicalActor);
+    }
   }
 
   // Si la hoja maestra está vacía (aún no configurada), no filtramos nada.
@@ -296,19 +308,20 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
   const statusByKey = new Map<string, StatusEntry[]>();
   for (const entry of parseStatusSheet(statusValues)) {
     const cp = canonicalPartner(entry.partner) ?? entry.partner;
-    const key = `${norm(cp)}|${norm(entry.solucion)}`;
+    const key = `${norm(cp)}|${norm(canonicalSolutionName(entry.solucion))}`;
     if (!statusByKey.has(key)) statusByKey.set(key, []);
     statusByKey.get(key)!.unshift({ status: entry.status, fecha: entry.fecha });
   }
-  // Seed inicial desde hoja maestra: sólo para soluciones sin entradas en la hoja Status.
-  const today = new Date();
-  const todayStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+  // Seed inicial desde hoja maestra: siempre se agrega como entrada más antigua.
   for (const row of masterList) {
     if (!row.status) continue;
     const canonicalEntity = canonicalPartner(row.entity) ?? row.entity;
-    const key = `${norm(canonicalEntity)}|${norm(row.solucion)}`;
+    const key = `${norm(canonicalEntity)}|${norm(canonicalSolutionName(row.solucion))}`;
+    const seed: StatusEntry = { status: row.status, fecha: "28/05/2026" };
     if (!statusByKey.has(key)) {
-      statusByKey.set(key, [{ status: row.status, fecha: todayStr }]);
+      statusByKey.set(key, [seed]);
+    } else {
+      statusByKey.get(key)!.push(seed);
     }
   }
 
@@ -334,10 +347,13 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
 
       const statusKey = `${norm(socio)}|${norm(solucion)}`;
       const statusHistory = statusByKey.get(statusKey) ?? [];
+      // Usar statusKey (nombres canónicos del maestro) para que el lookup coincida
+      // con cómo se construyó actoresAdicionalesByKey.
+      const actoresAdicionales = actoresAdicionalesByKey.get(statusKey) ?? actoresAdicionalesByKey.get(masterKey) ?? [];
 
-      if (!tabKpi || s.pymeMeta != null) return { ...s, socio, solucion, eje, statusHistory };
+      if (!tabKpi || s.pymeMeta != null) return { ...s, socio, solucion, eje, statusHistory, actoresAdicionales };
       return {
-        ...s, socio, solucion, eje, statusHistory,
+        ...s, socio, solucion, eje, statusHistory, actoresAdicionales,
         pymeMeta: tabKpi.kpis.pymeMeta,
         pymeUnit: tabKpi.kpis.pymeUnit,
         pymeSegmentos: tabKpi.kpis.pymeSegmentos,
@@ -363,11 +379,13 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
       const partner  = canonical?.entity   ?? p.partner;
       const solucion = canonical?.solucion ?? p.solucion;
       const statusKey = `${norm(partner)}|${norm(solucion)}`;
+      const actoresAdicionales = actoresAdicionalesByKey.get(statusKey) ?? actoresAdicionalesByKey.get(masterKey) ?? [];
       return {
         ...p,
         partner,
         solucion,
         statusHistory: statusByKey.get(statusKey) ?? [],
+        actoresAdicionales,
       };
     })
     .filter((p) => {
@@ -529,6 +547,7 @@ function buildPartnerSummaries(values: any[][]): PartnerSummary[] {
     solucion: r.solucion,
     slug: r.slug,
     statusHistory: [],
+    actoresAdicionales: [],
     ...r.kpis,
   }));
 }
@@ -702,6 +721,7 @@ function parseConsolidado(values: any[][], kpisBySlug: Map<string, KpiRow>): Sol
       fechaHito,
       comentarios,
       statusHistory: [],
+      actoresAdicionales: [],
       eje: kpi?.kpis.eje ?? null,
       pymeMeta: kpi?.kpis.pymeMeta ?? null,
       pymeUnit: kpi?.kpis.pymeUnit ?? null,
@@ -910,4 +930,63 @@ export async function fetchMetricas(): Promise<MetricasData | null> {
 export function clearAllCache() {
   aggregateCache = null;
   detailCache.clear();
+}
+
+// ─── Evaluación semanal de socios ────────────────────────────────────────────
+
+const EVAL_SOCIO_TABS = [
+  "Defontana",
+  "OTIC CChC",
+  "Multigremial Nacional",
+  "Blue Express",
+  "Walmart",
+  "BCI",
+  "Microsoft",
+  "FACEA UC",
+];
+
+let evalCache: { data: EvalSemana[]; expiresAt: number } | null = null;
+const EVAL_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function getEvalSheetId() {
+  const id = process.env.EVAL_SHEET_ID;
+  if (!id) throw new Error("Falta EVAL_SHEET_ID.");
+  return id;
+}
+
+/**
+ * Lee todas las hojas de evaluación semanal por socio y devuelve las filas
+ * con datos (semana, fecha, puntaje, semáforo, observación).
+ * Sólo incluye semanas donde el puntaje ya fue ingresado.
+ */
+export async function fetchEvaluaciones(force = false): Promise<EvalSemana[]> {
+  const now = Date.now();
+  if (!force && evalCache && now < evalCache.expiresAt) return evalCache.data;
+
+  const spreadsheetId = getEvalSheetId();
+  const client = sheetsClient();
+
+  // Una petición batchGet para todas las hojas
+  const ranges = EVAL_SOCIO_TABS.map((tab) => `'${tab}'!A4:M200`);
+  const res = await client.spreadsheets.values.batchGet({ spreadsheetId, ranges });
+
+  const result: EvalSemana[] = [];
+  for (let i = 0; i < EVAL_SOCIO_TABS.length; i++) {
+    const socio = EVAL_SOCIO_TABS[i];
+    const rows = res.data.valueRanges?.[i]?.values ?? [];
+    // índice 0 → headers (row 4 del sheet), índice 1 → ponderaciones, índice 2+ → datos
+    for (let r = 2; r < rows.length; r++) {
+      const row = rows[r];
+      const semana = s(row[0]);
+      const fecha = s(row[1]);
+      const puntaje = s(row[10]);
+      const semaforo = s(row[11]);
+      const observacion = s(row[12]);
+      if (!semana || !puntaje) continue; // semana sin datos aún
+      result.push({ socio, semana, fecha, puntaje, semaforo, observacion });
+    }
+  }
+
+  evalCache = { data: result, expiresAt: now + EVAL_CACHE_TTL_MS };
+  return result;
 }

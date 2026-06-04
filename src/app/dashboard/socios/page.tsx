@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { fetchAggregate } from "@/lib/sheets";
-import { resolveUser, filterGanttForUser, filterSummariesForUser } from "@/lib/partner-mapping";
+import { fetchAggregate, fetchEvaluaciones } from "@/lib/sheets";
+import { resolveUser, filterSummariesForUser } from "@/lib/partner-mapping";
 import { Shell } from "@/components/Shell";
 import { SociosView } from "@/components/SociosView";
 
@@ -27,18 +27,16 @@ export default async function DashboardSociosPage() {
   // Esta vista es solo para administradores. Las empresas vuelven a /dashboard.
   if (user.role === "partner") redirect("/dashboard");
 
-  let weeks: string[] = [];
-  let ganttRows: ReturnType<typeof filterGanttForUser> = [];
   let summaries: ReturnType<typeof filterSummariesForUser> = [];
   let fetchedAt = 0;
   let errorMsg: string | null = null;
+  let evalRows: Awaited<ReturnType<typeof fetchEvaluaciones>> = [];
 
   try {
-    const agg = await fetchAggregate();
-    weeks = agg.weeks;
-    ganttRows = filterGanttForUser(agg.ganttRows, user);
+    const [agg, ev] = await Promise.all([fetchAggregate(), fetchEvaluaciones()]);
     summaries = filterSummariesForUser(agg.summaries, user);
     fetchedAt = agg.fetchedAt;
+    evalRows = ev;
   } catch (err) {
     errorMsg = err instanceof Error ? err.message : "Error leyendo el Sheet";
   }
@@ -51,7 +49,7 @@ export default async function DashboardSociosPage() {
           <p className="mt-1">{errorMsg}</p>
         </div>
       )}
-      <SociosView user={user} summaries={summaries} ganttRows={ganttRows} weeks={weeks} />
+      <SociosView user={user} summaries={summaries} evalRows={evalRows} />
     </Shell>
   );
 }

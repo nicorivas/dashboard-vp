@@ -1,9 +1,13 @@
 import { KpiCards } from "@/components/KpiCards";
 import { SolutionCard } from "@/components/SolutionCard";
-import { MiniGantt } from "@/components/MiniGantt";
 import { PymeProjectionChart } from "@/components/PymeProjectionChart";
 import { SolutionSummaryTable } from "@/components/SolutionSummaryTable";
-import type { GanttRow, ResolvedUser, SolutionSummary } from "@/lib/types";
+import { EvaluacionSemanalTable } from "@/components/EvaluacionSemanalTable";
+import type { EvalSemana, ResolvedUser, SolutionSummary } from "@/lib/types";
+
+function norm(v: string) {
+  return v.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+}
 
 /**
  * Vista de socios reutilizable: tabla resumen + KPIs + chart de proyección +
@@ -13,21 +17,32 @@ import type { GanttRow, ResolvedUser, SolutionSummary } from "@/lib/types";
 export function SociosView({
   user,
   summaries,
-  ganttRows,
-  weeks,
+  evalRows = [],
 }: {
   user: ResolvedUser;
   summaries: SolutionSummary[];
-  ganttRows: GanttRow[];
-  weeks: string[];
+  evalRows?: EvalSemana[];
 }) {
   const isAdmin = user.role === "admin";
   const isPartner = user.role === "partner";
+
+  // Mapa normalizado: nombre socio → filas de evaluación de ese socio
+  const evalBySocio = new Map<string, EvalSemana[]>();
+  for (const r of evalRows) {
+    const key = norm(r.socio);
+    if (!evalBySocio.has(key)) evalBySocio.set(key, []);
+    evalBySocio.get(key)!.push(r);
+  }
 
   const bySocio = new Map<string, SolutionSummary[]>();
   for (const s of summaries) {
     if (!bySocio.has(s.socio)) bySocio.set(s.socio, []);
     bySocio.get(s.socio)!.push(s);
+    for (const actor of s.actoresAdicionales ?? []) {
+      if (!bySocio.has(actor)) bySocio.set(actor, []);
+      if (!bySocio.get(actor)!.some((x) => x.slug === s.slug))
+        bySocio.get(actor)!.push(s);
+    }
   }
 
   return (
@@ -84,6 +99,15 @@ export function SociosView({
         </section>
       )}
 
+      {isAdmin && evalRows.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
+            Evaluación semanal de socios
+          </h2>
+          <EvaluacionSemanalTable rows={evalRows} />
+        </section>
+      )}
+
       {summaries.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
@@ -92,7 +116,11 @@ export function SociosView({
           {isPartner ? (
             <div className="grid gap-4 md:grid-cols-2">
               {summaries.map((s) => (
-                <SolutionCard key={s.slug} s={s} showSocio={false} />
+                <SolutionCard
+                  key={s.slug}
+                  s={s}
+                  showSocio={false}
+                />
               ))}
             </div>
           ) : (
@@ -109,7 +137,11 @@ export function SociosView({
                   </div>
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {sols.map((s) => (
-                      <SolutionCard key={s.slug} s={s} showSocio={false} />
+                      <SolutionCard
+                        key={s.slug}
+                        s={s}
+                        showSocio={false}
+                      />
                     ))}
                   </div>
                 </div>
@@ -119,22 +151,6 @@ export function SociosView({
         </section>
       )}
 
-      {ganttRows.length > 0 && (
-        <section>
-          <details className="group" open>
-            <summary className="mb-3 cursor-pointer list-none">
-              <h2 className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-gray-700 hover:text-gray-900">
-                <span className="transition-transform group-open:rotate-90">▶</span>
-                Gantt detallado por etapa
-                <span className="text-xs font-normal normal-case text-gray-400">
-                  ({ganttRows.length} filas, {weeks.length} semanas)
-                </span>
-              </h2>
-            </summary>
-            <MiniGantt weeks={weeks} rows={ganttRows} showSocio={isAdmin} />
-          </details>
-        </section>
-      )}
     </>
   );
 }

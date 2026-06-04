@@ -48,6 +48,9 @@ type Row = {
   eje: string;
   acum: number | null;
   meta: number | null;
+  actoresAdicionales: string[];
+  /** Si es una fila de co-actor, nombre del actor primario */
+  coActorDe: string | null;
 };
 
 export function ResumenView({
@@ -66,25 +69,23 @@ export function ResumenView({
   const grandMeta = totalPymeMeta(all).total;
   const grandAcum = totalPymeAcum(all).total;
 
-  // Una fila por solución (socio o partner). Sin agregar.
-  const rows: Row[] = [
-    ...summaries.map((s) => ({
-      tipo: "Socio" as const,
-      entity: s.socio,
-      solucion: s.solucion,
-      eje: s.eje?.trim() || "Sin eje",
-      acum: s.pymeAcum,
-      meta: s.pymeMeta,
-    })),
-    ...partnerSummaries.map((p) => ({
-      tipo: "Partner" as const,
-      entity: p.partner,
-      solucion: p.solucion,
-      eje: p.eje?.trim() || "Sin eje",
-      acum: p.pymeAcum,
-      meta: p.pymeMeta,
-    })),
-  ].sort((a, b) => {
+  // Una fila por actor (primario + adicionales). Sin agregar KPIs.
+  const rows: Row[] = [];
+  for (const s of summaries) {
+    const eje = s.eje?.trim() || "Sin eje";
+    rows.push({ tipo: "Socio", entity: s.socio, solucion: s.solucion, eje, acum: s.pymeAcum, meta: s.pymeMeta, actoresAdicionales: s.actoresAdicionales ?? [], coActorDe: null });
+    for (const actor of s.actoresAdicionales ?? []) {
+      rows.push({ tipo: "Socio", entity: actor, solucion: s.solucion, eje, acum: s.pymeAcum, meta: s.pymeMeta, actoresAdicionales: [s.socio], coActorDe: s.socio });
+    }
+  }
+  for (const p of partnerSummaries) {
+    const eje = p.eje?.trim() || "Sin eje";
+    rows.push({ tipo: "Partner", entity: p.partner, solucion: p.solucion, eje, acum: p.pymeAcum, meta: p.pymeMeta, actoresAdicionales: p.actoresAdicionales ?? [], coActorDe: null });
+    for (const actor of p.actoresAdicionales ?? []) {
+      rows.push({ tipo: "Partner", entity: actor, solucion: p.solucion, eje, acum: p.pymeAcum, meta: p.pymeMeta, actoresAdicionales: [p.partner], coActorDe: p.partner });
+    }
+  }
+  rows.sort((a, b) => {
     const ra = ejeRank(a.eje);
     const rb = ejeRank(b.eje);
     if (ra !== rb) return ra - rb;
@@ -228,7 +229,7 @@ export function ResumenView({
                 <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider">Solución</th>
                 <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider">Acumulado</th>
                 <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider">Meta 2026</th>
-                <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider">% Avance</th>
+                <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">% Avance Meta</th>
               </tr>
             </thead>
             <tbody>
@@ -280,7 +281,21 @@ export function ResumenView({
                           {r.tipo}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-700">{r.entity}</td>
+                      <td className="px-3 py-2 text-xs text-gray-700">
+                        <span className={r.coActorDe ? "text-gray-500" : ""}>{r.entity}</span>
+                        {r.coActorDe && (
+                          <p className="text-[9px] text-gray-400">participa en solución de {r.coActorDe}</p>
+                        )}
+                        {!r.coActorDe && r.actoresAdicionales.length > 0 && (
+                          <div className="mt-0.5 flex flex-wrap gap-0.5">
+                            {r.actoresAdicionales.map((a) => (
+                              <span key={a} className="inline-flex items-center rounded-full bg-brand-50 px-1.5 py-0.5 text-[9px] font-medium text-brand-700 whitespace-nowrap">
+                                + {a}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-3 py-2 font-medium text-gray-900">{r.solucion}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-900">
                         {r.acum != null && r.acum > 0 ? formatNumber(r.acum) : "—"}

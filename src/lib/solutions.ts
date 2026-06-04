@@ -49,6 +49,7 @@ const SOLUTION_TO_TAB_RAW: Array<[partner: string, solution: string, tab: string
   ["Microsoft", "Elevate", "Det_MSFT_Elevate"],
   ["Microsoft", "Agente Copilot", "Det_MSFT_Copilot"],
   ["Microsoft", "Ciberseguridad", "Det_MSFT_Ciber"],
+  ["OTIC CChC", "Programa educación financiera", "Det_OTIC_Inclusion"],
   ["OTIC CChC", "Programa inclusión financiera", "Det_OTIC_Inclusion"],
   ["OTIC CChC", "Ruta Inclusión financiera", "Det_OTIC_Inclusion"],
   ["OTIC CChC", "Academia Pyme", "Det_OTIC_Academia"],
@@ -59,6 +60,17 @@ const SOLUTION_TO_TAB_RAW: Array<[partner: string, solution: string, tab: string
   ["Multigremial Nacional", "Academia de Emprendedores", "Det_MGN_AcadEmpren"],
   ["Multigremial Nacional", "Ferias y Encuentros Empresariales", "Det_MGN_Ferias"],
 ];
+
+/** Overrides de nombre de solución: normalized key → display name canónico */
+const SOLUTION_NAME_OVERRIDES: Record<string, string> = {
+  "programa inclusion financiera": "Programa educación financiera",
+  "ruta inclusion financiera": "Programa educación financiera",
+};
+
+export function canonicalSolutionName(solucion: string): string {
+  const key = normalize(solucion).replace(/[^a-z0-9 ]/g, "");
+  return SOLUTION_NAME_OVERRIDES[key] ?? solucion;
+}
 
 export function normalize(s: string): string {
   return s

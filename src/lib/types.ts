@@ -13,7 +13,7 @@ export const ETAPAS: EtapaName[] = [
   "5. Evaluación",
 ];
 
-export type Estado = "En curso" | "Pendiente" | "Terminado" | "No aplica" | "";
+export type Estado = "En curso" | "Pendiente" | "Terminado" | "No aplica" | "No iniciado" | "";
 
 /**
  * Roles del dashboard:
@@ -74,6 +74,16 @@ export type StatusEntry = {
   fecha: string;
 };
 
+/** Fila de evaluación semanal de un socio (Sheet eval). */
+export type EvalSemana = {
+  socio: string;
+  semana: string;    // "S22"
+  fecha: string;     // "25-may-2026"
+  puntaje: string;   // "3.2"
+  semaforo: string;  // "VERDE" | "AMARILLO" | "ROJO"
+  observacion: string;
+};
+
 /** Resumen ejecutivo por solución de socio (tab 4 + KPIs_PYMEs). */
 export type SolutionSummary = PymeKpis & {
   socio: string;
@@ -86,6 +96,8 @@ export type SolutionSummary = PymeKpis & {
   fechaHito: string;
   comentarios: string;
   statusHistory: StatusEntry[]; // más reciente primero
+  /** Actores adicionales (socios o partners) que también participan en esta solución. */
+  actoresAdicionales: string[];
 };
 
 /** Solución entregada por un partner (KPIs_PYMEs_Partners). */
@@ -94,6 +106,7 @@ export type PartnerSummary = PymeKpis & {
   solucion: string;
   slug: string;
   statusHistory: StatusEntry[];
+  actoresAdicionales: string[];
 };
 
 /** Detalle por solución (tabs Det_*). */

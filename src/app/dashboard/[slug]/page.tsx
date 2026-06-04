@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { fetchAggregate, fetchSolutionDetail } from "@/lib/sheets";
+import { fetchAggregate, fetchSolutionDetail, fetchEvaluaciones } from "@/lib/sheets";
 import { resolveUser } from "@/lib/partner-mapping";
 import { findSolutionBySlug } from "@/lib/solutions";
 import { Shell } from "@/components/Shell";
@@ -46,35 +46,43 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
   const meta = findSolutionBySlug(params.slug);
   if (!meta) return notFound();
 
-  // Autorización: socios sólo pueden ver sus soluciones.
-  if (user.role === "partner" && user.partner !== meta.partner) {
-    return (
-      <Shell user={user} email={userEmail}>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
-          <h2 className="text-lg font-semibold">Sin acceso a esta solución</h2>
-          <p className="mt-2 text-sm">
-            Esta solución pertenece a otro socio. Contacta a tu ejecutivo FE si crees que es un error.
-          </p>
-          <Link href="/dashboard" className="mt-4 inline-block text-sm font-medium text-brand-700 hover:text-brand-900">
-            ← Volver al dashboard
-          </Link>
-        </div>
-      </Shell>
-    );
-  }
-
   let detail: Awaited<ReturnType<typeof fetchSolutionDetail>> | null = null;
   let summary: Awaited<ReturnType<typeof fetchAggregate>>["summaries"][number] | null = null;
   let errorMsg: string | null = null;
   let fetchedAt = 0;
+  let evalRows: Awaited<ReturnType<typeof fetchEvaluaciones>> = [];
 
   try {
-    const [agg, det] = await Promise.all([fetchAggregate(), fetchSolutionDetail(meta.tab)]);
+    const [agg, det, ev] = await Promise.all([fetchAggregate(), fetchSolutionDetail(meta.tab), fetchEvaluaciones()]);
     detail = det;
     fetchedAt = agg.fetchedAt;
     summary = agg.summaries.find((s) => s.slug === params.slug) ?? null;
+    const socioNorm = meta.partner.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+    evalRows = ev.filter((r) => r.socio.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim() === socioNorm);
   } catch (err) {
     errorMsg = err instanceof Error ? err.message : "Error leyendo el Sheet";
+  }
+
+  // Autorización: socios sólo pueden ver sus soluciones o aquellas donde participan como actor adicional.
+  if (user.role === "partner" && user.partner !== meta.partner) {
+    const isCoActor = summary?.actoresAdicionales?.some(
+      (a) => a.trim().toLowerCase() === (user.partner ?? "").trim().toLowerCase()
+    ) ?? false;
+    if (!isCoActor) {
+      return (
+        <Shell user={user} email={userEmail}>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
+            <h2 className="text-lg font-semibold">Sin acceso a esta solución</h2>
+            <p className="mt-2 text-sm">
+              Esta solución pertenece a otro socio. Contacta a tu ejecutivo FE si crees que es un error.
+            </p>
+            <Link href="/dashboard" className="mt-4 inline-block text-sm font-medium text-brand-700 hover:text-brand-900">
+              ← Volver al dashboard
+            </Link>
+          </div>
+        </Shell>
+      );
+    }
   }
 
   return (
@@ -97,6 +105,16 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               {meta.partner}
+              {summary?.actoresAdicionales && summary.actoresAdicionales.length > 0 && (
+                <span className="ml-2 font-normal normal-case text-gray-400">
+                  {summary.actoresAdicionales.map((a, i) => (
+                    <span key={a}>
+                      {i === 0 ? "· con " : ", "}
+                      <span className="text-brand-600 font-medium">{a}</span>
+                    </span>
+                  ))}
+                </span>
+              )}
             </p>
             <h1 className="mt-1 text-2xl font-semibold text-gray-900">{meta.solucion}</h1>
           </div>
@@ -186,31 +204,101 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
               Sin actualizaciones aún.
             </div>
           ) : (
-            <>
-              {/* Status actual */}
-              <div className="rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4">
-                {summary.statusHistory[0].fecha && (
-                  <p className="mb-1.5 text-xs font-medium text-brand-600">{summary.statusHistory[0].fecha}</p>
-                )}
-                <p className="text-sm text-gray-800">{summary.statusHistory[0].status}</p>
-              </div>
-              {/* Historial */}
-              {summary.statusHistory.length > 1 && (
-                <div className="mt-3 space-y-0 rounded-xl border border-gray-200 bg-white overflow-hidden">
-                  <p className="border-b border-gray-100 bg-gray-50/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                    Historial
-                  </p>
-                  <ul className="divide-y divide-gray-100">
-                    {summary.statusHistory.slice(1).map((entry, i) => (
-                      <li key={i} className="flex items-start gap-4 px-4 py-3">
-                        <span className="mt-0.5 shrink-0 text-xs text-gray-400 w-20">{entry.fecha}</span>
-                        <p className="text-xs text-gray-600">{entry.status}</p>
-                      </li>
-                    ))}
-                  </ul>
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <ul className="divide-y divide-gray-100">
+                {summary.statusHistory.map((entry, i) => (
+                  <li
+                    key={i}
+                    className={`flex items-start gap-4 px-4 py-3 ${i === 0 ? "bg-gradient-to-br from-brand-50 to-white" : ""}`}
+                  >
+                    <span className={`mt-0.5 w-20 shrink-0 text-xs ${i === 0 ? "font-medium text-brand-600" : "text-gray-400"}`}>
+                      {entry.fecha}
+                    </span>
+                    <p className={`text-xs ${i === 0 ? "font-medium text-gray-900" : "text-gray-600"}`}>
+                      {entry.status}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
+      {user.role === "admin" && evalRows.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
+            Evaluación semanal
+          </h2>
+          {/* Última evaluación */}
+          {(() => {
+            const last = evalRows[evalRows.length - 1];
+            const semKey = last.semaforo.toLowerCase().trim();
+            const dotCls =
+              semKey === "verde" ? "bg-emerald-500"
+              : semKey === "amarillo" ? "bg-amber-400"
+              : semKey === "rojo" ? "bg-red-500"
+              : "bg-gray-300";
+            const bandCls =
+              semKey === "verde" ? "border-emerald-200 from-emerald-50"
+              : semKey === "amarillo" ? "border-amber-200 from-amber-50"
+              : semKey === "rojo" ? "border-red-200 from-red-50"
+              : "border-gray-200 from-gray-50";
+            const textCls =
+              semKey === "verde" ? "text-emerald-700"
+              : semKey === "amarillo" ? "text-amber-700"
+              : semKey === "rojo" ? "text-red-700"
+              : "text-gray-600";
+            return (
+              <div className={`rounded-xl border bg-gradient-to-br to-white p-4 ${bandCls}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className={`text-xs font-medium ${textCls}`}>{last.fecha}</p>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-semibold tabular-nums ${textCls}`}>
+                      {last.puntaje} / 5
+                    </span>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
+                      semKey === "verde" ? "bg-emerald-100 text-emerald-700 ring-emerald-600/20"
+                      : semKey === "amarillo" ? "bg-amber-100 text-amber-700 ring-amber-600/20"
+                      : semKey === "rojo" ? "bg-red-100 text-red-700 ring-red-400/30"
+                      : "bg-gray-100 text-gray-500 ring-gray-300"
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${dotCls}`} />
+                      {last.semaforo}
+                    </span>
+                  </div>
                 </div>
-              )}
-            </>
+                {last.observacion && (
+                  <p className="mt-2 text-sm text-gray-800">{last.observacion}</p>
+                )}
+              </div>
+            );
+          })()}
+          {/* Historial */}
+          {evalRows.length > 1 && (
+            <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <p className="border-b border-gray-100 bg-gray-50/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                Historial
+              </p>
+              <ul className="divide-y divide-gray-100">
+                {[...evalRows].reverse().slice(1).map((r) => {
+                  const sk = r.semaforo.toLowerCase().trim();
+                  const dot =
+                    sk === "verde" ? "bg-emerald-500"
+                    : sk === "amarillo" ? "bg-amber-400"
+                    : sk === "rojo" ? "bg-red-500"
+                    : "bg-gray-300";
+                  return (
+                    <li key={r.semana} className="flex items-start gap-4 px-4 py-3">
+                      <span className="mt-0.5 w-24 shrink-0 text-xs text-gray-400">{r.fecha}</span>
+                      <span className="mt-0.5 shrink-0 text-xs font-semibold tabular-nums text-gray-600">{r.puntaje}</span>
+                      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${dot}`} title={r.semaforo} />
+                      <p className="text-xs text-gray-600">{r.observacion || "—"}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </section>
       )}
@@ -244,6 +332,7 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
           <div className="mb-4 flex flex-wrap gap-4 rounded-xl border border-gray-200 bg-gray-50/60 px-5 py-3 text-xs text-gray-600">
             <span className="font-semibold uppercase tracking-wider text-gray-400 self-center">Referencias</span>
             {[
+              { abbr: "DIR", label: "Directorio FE Consulting" },
               { abbr: "AP", label: "Área de Proyectos" },
               { abbr: "MC", label: "Área de Marketing y Comunidad" },
               { abbr: "ES", label: "Área de Estudios" },

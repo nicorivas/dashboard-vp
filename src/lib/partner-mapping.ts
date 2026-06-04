@@ -101,5 +101,8 @@ export function filterSummariesForUser(
 ): SolutionSummary[] {
   if (user.role !== "partner" || !user.partner) return summaries;
   const target = user.partner.trim().toLowerCase();
-  return summaries.filter((s) => s.socio.trim().toLowerCase() === target);
+  return summaries.filter((s) =>
+    s.socio.trim().toLowerCase() === target ||
+    s.actoresAdicionales.some((a) => a.trim().toLowerCase() === target)
+  );
 }

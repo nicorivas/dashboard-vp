@@ -88,15 +88,17 @@ function parseEstadoLoose(raw: string): Estado {
   if (e.includes("curso")) return "En curso";
   if (e.includes("term") || e.includes("listo") || e.includes("comple")) return "Terminado";
   if (e.includes("pend")) return "Pendiente";
+  if (e.includes("no inic")) return "No iniciado";
   return "";
 }
 
-const BAR_COLOR: Record<Estado, string> = {
+const BAR_COLOR: Record<string, string> = {
   Terminado: "bg-blue-400",
   "En curso": "bg-emerald-500",
-  Pendiente: "bg-amber-300",
+  Pendiente: "bg-red-400",
+  "No iniciado": "bg-slate-300",
   "No aplica": "bg-gray-200",
-  "": "bg-gray-300",
+  "": "bg-gray-200",
 };
 
 const ROW_H = 28; // px
@@ -253,7 +255,9 @@ export function MiniGantt({
           <span className="font-semibold uppercase tracking-wider text-gray-400">Leyenda</span>
           <Legend color="bg-emerald-500" label="En curso" />
           <Legend color="bg-blue-400" label="Terminado" />
-          <Legend color="bg-amber-300" label="Pendiente" />
+          <Legend color="bg-red-400" label="Pendiente" />
+          <Legend color="bg-slate-300" label="No iniciado" />
+          <Legend color="bg-gray-200" label="No aplica" />
           {todayIdx >= 0 && (
             <span className="ml-auto inline-flex items-center gap-1.5 text-red-600">
               <span className="inline-block h-3 w-2 rounded-sm bg-red-100 ring-1 ring-red-300" />

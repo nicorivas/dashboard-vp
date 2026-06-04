@@ -31,6 +31,15 @@ export function PartnerCard({ p }: { p: PartnerSummary }) {
             {p.partner}
           </p>
           <h3 className="mt-0.5 truncate text-base font-semibold text-gray-900">{p.solucion}</h3>
+          {p.actoresAdicionales && p.actoresAdicionales.length > 0 && (
+            <p className="mt-1 flex flex-wrap gap-1">
+              {p.actoresAdicionales.map((a) => (
+                <span key={a} className="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700">
+                  + {a}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
         {p.eje && (
           <span
@@ -75,29 +84,23 @@ export function PartnerCard({ p }: { p: PartnerSummary }) {
       <div className="mt-4 border-t border-gray-100 pt-4">
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Status</p>
         {p.statusHistory && p.statusHistory.length > 0 ? (
-          <>
-            <div className="rounded-lg border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-3">
-              {p.statusHistory[0].fecha && (
-                <p className="mb-1 text-[10px] font-medium text-brand-600">{p.statusHistory[0].fecha}</p>
-              )}
-              <p className="text-xs text-gray-800">{p.statusHistory[0].status}</p>
-            </div>
-            {p.statusHistory.length > 1 && (
-              <div className="mt-2 rounded-lg border border-gray-200 bg-white overflow-hidden">
-                <p className="border-b border-gray-100 bg-gray-50/60 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                  Historial
-                </p>
-                <ul className="divide-y divide-gray-100">
-                  {p.statusHistory.slice(1).map((entry, i) => (
-                    <li key={i} className="flex items-start gap-3 px-3 py-2">
-                      <span className="mt-0.5 shrink-0 text-[10px] text-gray-400 w-16">{entry.fecha}</span>
-                      <p className="text-[11px] text-gray-600">{entry.status}</p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </>
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <ul className="divide-y divide-gray-100">
+              {p.statusHistory.map((entry, i) => (
+                <li
+                  key={i}
+                  className={`flex items-start gap-3 px-3 py-2 ${i === 0 ? "bg-gradient-to-br from-brand-50 to-white" : ""}`}
+                >
+                  <span className={`mt-0.5 w-16 shrink-0 text-[10px] ${i === 0 ? "font-medium text-brand-600" : "text-gray-400"}`}>
+                    {entry.fecha}
+                  </span>
+                  <p className={`text-[11px] ${i === 0 ? "font-medium text-gray-900" : "text-gray-600"}`}>
+                    {entry.status}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : (
           <p className="text-xs text-gray-400">Sin actualizaciones aún.</p>
         )}

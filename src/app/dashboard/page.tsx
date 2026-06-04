@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { fetchAggregate, fetchMetricas } from "@/lib/sheets";
-import { resolveUser, filterGanttForUser, filterSummariesForUser } from "@/lib/partner-mapping";
+import { fetchAggregate, fetchMetricas, fetchEvaluaciones } from "@/lib/sheets";
+import { resolveUser, filterSummariesForUser } from "@/lib/partner-mapping";
 import { Shell } from "@/components/Shell";
 import { ResumenView } from "@/components/ResumenView";
 import { SociosView } from "@/components/SociosView";
@@ -37,22 +37,20 @@ export default async function DashboardPage() {
     );
   }
 
-  let weeks: string[] = [];
-  let ganttRows: ReturnType<typeof filterGanttForUser> = [];
   let summaries: ReturnType<typeof filterSummariesForUser> = [];
   let partnerSummaries: Awaited<ReturnType<typeof fetchAggregate>>["partnerSummaries"] = [];
   let fetchedAt = 0;
   let errorMsg: string | null = null;
   let metricas: Awaited<ReturnType<typeof fetchMetricas>> = null;
+  let evalRows: Awaited<ReturnType<typeof fetchEvaluaciones>> = [];
 
   try {
-    const [agg, met] = await Promise.all([fetchAggregate(), fetchMetricas()]);
-    weeks = agg.weeks;
-    ganttRows = filterGanttForUser(agg.ganttRows, user);
+    const [agg, met, ev] = await Promise.all([fetchAggregate(), fetchMetricas(), fetchEvaluaciones()]);
     summaries = filterSummariesForUser(agg.summaries, user);
     partnerSummaries = agg.partnerSummaries;
     fetchedAt = agg.fetchedAt;
     metricas = met;
+    evalRows = ev;
   } catch (err) {
     errorMsg = err instanceof Error ? err.message : "Error leyendo el Sheet";
   }
@@ -70,7 +68,7 @@ export default async function DashboardPage() {
       {user.role === "admin" ? (
         <ResumenView user={user} summaries={summaries} partnerSummaries={partnerSummaries} metricas={metricas} />
       ) : (
-        <SociosView user={user} summaries={summaries} ganttRows={ganttRows} weeks={weeks} />
+        <SociosView user={user} summaries={summaries} evalRows={evalRows} />
       )}
     </Shell>
   );

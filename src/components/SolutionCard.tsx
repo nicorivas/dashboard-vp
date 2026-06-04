@@ -35,6 +35,15 @@ export function SolutionCard({ s, showSocio = true }: { s: SolutionSummary; show
           <h3 className="mt-0.5 truncate text-base font-semibold text-gray-900 group-hover:text-brand-700">
             {s.solucion}
           </h3>
+          {s.actoresAdicionales && s.actoresAdicionales.length > 0 && (
+            <p className="mt-1 flex flex-wrap gap-1">
+              {s.actoresAdicionales.map((a) => (
+                <span key={a} className="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700">
+                  + {a}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
         <div className="shrink-0 text-right">
           <p className="text-2xl font-semibold tabular-nums text-gray-900">{s.avance}%</p>
