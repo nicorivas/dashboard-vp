@@ -49,6 +49,8 @@ const SOLUTION_TO_TAB_RAW: Array<[partner: string, solution: string, tab: string
   ["Microsoft", "Elevate", "Det_MSFT_Elevate"],
   ["Microsoft", "Agente Copilot", "Det_MSFT_Copilot"],
   ["Microsoft", "Ciberseguridad", "Det_MSFT_Ciber"],
+  ["OTIC CChC", "Programa de Educación Financiera y Gestión para Pymes", "Det_OTIC_Inclusion"],
+  ["OTIC CChC", "Programa de Educación Financiera", "Det_OTIC_Inclusion"],
   ["OTIC CChC", "Programa educación financiera", "Det_OTIC_Inclusion"],
   ["OTIC CChC", "Programa inclusión financiera", "Det_OTIC_Inclusion"],
   ["OTIC CChC", "Ruta Inclusión financiera", "Det_OTIC_Inclusion"],
@@ -63,8 +65,12 @@ const SOLUTION_TO_TAB_RAW: Array<[partner: string, solution: string, tab: string
 
 /** Overrides de nombre de solución: normalized key → display name canónico */
 const SOLUTION_NAME_OVERRIDES: Record<string, string> = {
-  "programa inclusion financiera": "Programa educación financiera",
-  "ruta inclusion financiera": "Programa educación financiera",
+  "programa inclusión financiera": "Programa de Educación Financiera y Gestión para Pymes",
+  "programa inclusion financiera": "Programa de Educación Financiera y Gestión para Pymes",
+  "programa educacion financiera": "Programa de Educación Financiera y Gestión para Pymes",
+  "programa de educacion financiera": "Programa de Educación Financiera y Gestión para Pymes",
+  "ruta inclusión financiera": "Programa de Educación Financiera y Gestión para Pymes",
+  "ruta inclusion financiera": "Programa de Educación Financiera y Gestión para Pymes",
 };
 
 export function canonicalSolutionName(solucion: string): string {
@@ -119,7 +125,9 @@ export function findSolutionByTab(tab: string): { partner: string; solucion: str
 
 export function findSolutionBySlug(slug: string): { partner: string; solucion: string; tab: string } | null {
   for (const [partner, solucion, tab] of SOLUTION_TO_TAB_RAW) {
-    if (slugify(`${partner}-${solucion}`) === slug) return { partner, solucion, tab };
+    if (slugify(`${partner}-${solucion}`) === slug) {
+      return { partner, solucion: canonicalSolutionName(solucion), tab };
+    }
   }
   return null;
 }

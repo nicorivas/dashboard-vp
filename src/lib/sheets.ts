@@ -465,10 +465,11 @@ function parseKpiSheet(values: any[][], mode: "socio" | "partner"): Map<string, 
     if (!entityRaw || !solucion) continue;
 
     const entity = mode === "socio" ? (canonicalPartner(entityRaw) ?? entityRaw) : entityRaw;
+    const canonicalSolucion = canonicalSolutionName(solucion);
     const slug =
       mode === "socio"
-        ? solutionSlug(entity, solucion)
-        : slugify(`partner-${entity}-${solucion}`);
+        ? solutionSlug(entity, canonicalSolucion)
+        : slugify(`partner-${entity}-${canonicalSolucion}`);
 
     // Cada celda mensual es el ALTA del mes (ingresos nuevos), no el acumulado.
     // El acumulado a la fecha = suma de todos los meses reportados.
@@ -497,7 +498,7 @@ function parseKpiSheet(values: any[][], mode: "socio" | "partner"): Map<string, 
       pymeAcumMonth: acumMonth,
     };
 
-    out.set(slug, { entity, solucion, slug, kpis });
+    out.set(slug, { entity, solucion: canonicalSolucion, slug, kpis });
   }
   return out;
 }
@@ -655,13 +656,15 @@ function parseGantt(values: any[][]): {
     if (solucion) lastSolucion = solucion;
 
     const semanas = weekCols.map((c) => s(row[c]));
-    rows.push({ eje, socio, solucion, etapa, responsable, estado, semanas });
+    const canonical = canonicalPartner(socio) ?? socio;
+    const detTab = solucion ? findDetTab(canonical, solucion) : null;
+    const canonicalSolucion = detTab ? (findSolutionByTab(detTab)?.solucion ?? solucion) : solucion;
+    rows.push({ eje, socio, solucion: canonicalSolucion, etapa, responsable, estado, semanas });
 
     // Usar detTab como clave (fuzzy match de nombre) para evitar mismatches
     // entre variaciones de nombre entre pestañas del Sheet.
-    if (eje && socio && solucion) {
-      const canonical = canonicalPartner(socio) ?? socio;
-      const tab = findDetTab(canonical, solucion);
+    if (eje && socio && canonicalSolucion) {
+      const tab = detTab;
       if (tab && !ejeByTab.has(tab)) ejeByTab.set(tab, eje);
     }
   }
@@ -712,7 +715,7 @@ function parseConsolidado(values: any[][], kpisBySlug: Map<string, KpiRow>): Sol
 
     out.push({
       socio,
-      solucion,
+      solucion: canonicalSolucion,
       slug,
       detTab,
       etapas,

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAggregate, fetchSolutionDetail, fetchEvaluaciones } from "@/lib/sheets";
 import { resolveUser } from "@/lib/partner-mapping";
-import { findSolutionBySlug } from "@/lib/solutions";
+import { findSolutionBySlug, normalize } from "@/lib/solutions";
 import { Shell } from "@/components/Shell";
 import { AvanceBar } from "@/components/AvanceBar";
 import { EstadoBadge } from "@/components/EtapaDots";
@@ -57,6 +57,13 @@ export default async function SolutionDetailPage({ params }: { params: { slug: s
     detail = det;
     fetchedAt = agg.fetchedAt;
     summary = agg.summaries.find((s) => s.slug === params.slug) ?? null;
+    if (!summary) {
+      summary = agg.summaries.find(
+        (s) =>
+          normalize(s.socio) === normalize(meta.partner) &&
+          normalize(s.solucion) === normalize(meta.solucion)
+      ) ?? null;
+    }
     const socioNorm = meta.partner.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
     evalRows = ev.filter((r) => r.socio.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim() === socioNorm);
   } catch (err) {
