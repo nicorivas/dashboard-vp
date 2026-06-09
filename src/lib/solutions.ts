@@ -69,6 +69,7 @@ const SOLUTION_NAME_OVERRIDES: Record<string, string> = {
   "programa inclusion financiera": "Programa de Educación Financiera y Gestión para Pymes",
   "programa educacion financiera": "Programa de Educación Financiera y Gestión para Pymes",
   "programa de educacion financiera": "Programa de Educación Financiera y Gestión para Pymes",
+  "programa de educacion financiera y gestion para pyme": "Programa de Educación Financiera y Gestión para Pymes",
   "ruta inclusión financiera": "Programa de Educación Financiera y Gestión para Pymes",
   "ruta inclusion financiera": "Programa de Educación Financiera y Gestión para Pymes",
 };
