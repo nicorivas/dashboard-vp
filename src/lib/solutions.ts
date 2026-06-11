@@ -44,6 +44,7 @@ const SOLUTION_TO_TAB_RAW: Array<[partner: string, solution: string, tab: string
   ["BCI", "Modelo Nace Emprendimiento", "Det_BCI_Nace"],
   ["Walmart", "Marketplace", "Det_Walmart_Marketplace"],
   ["Blue Express", "Cupón descuento despacho", "Det_BlueEx_Cupon"],
+  ["Defontana", "Contabilidad gratuita", "Det_Defontana_ERP"],
   ["Defontana", "Contabilidad Gratuita / ERP", "Det_Defontana_ERP"],
   ["Defontana", "Defontana Digital", "Det_Defontana_Digital"],
   ["Microsoft", "Elevate", "Det_MSFT_Elevate"],
