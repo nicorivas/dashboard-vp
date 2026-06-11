@@ -290,7 +290,14 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     // Canonicalizar el nombre del socio/partner para que coincida con lo que
     // devuelven parseConsolidado y buildPartnerSummaries (que también canonicalizan).
     const canonicalEntity = canonicalPartner(row.entity) ?? row.entity;
-    const canonicalSol = canonicalSolutionName(row.solucion);
+    // Resolver el nombre canónico por el mismo camino que parseConsolidado:
+    // findDetTab → findSolutionByTab → primera entrada del tab (nombre canónico).
+    // Esto garantiza que "Contabilidad gratuita" → "Contabilidad Gratuita / ERP",
+    // "Programa educación financiera" → "Programa de Educación Financiera y Gestión para Pymes", etc.
+    const detTabMaster = findDetTab(canonicalEntity, row.solucion);
+    const canonicalSol = detTabMaster
+      ? (findSolutionByTab(detTabMaster)?.solucion ?? canonicalSolutionName(row.solucion))
+      : canonicalSolutionName(row.solucion);
     const key = `${norm(canonicalEntity)}|${norm(canonicalSol)}`;
     masterNames.set(key, { entity: canonicalEntity, solucion: canonicalSol });
     if (row.mostrar) masterVisible.add(key);
@@ -317,7 +324,11 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
   for (const row of masterList) {
     if (!row.status) continue;
     const canonicalEntity = canonicalPartner(row.entity) ?? row.entity;
-    const key = `${norm(canonicalEntity)}|${norm(canonicalSolutionName(row.solucion))}`;
+    const detTabSeed = findDetTab(canonicalEntity, row.solucion);
+    const canonicalSolSeed = detTabSeed
+      ? (findSolutionByTab(detTabSeed)?.solucion ?? canonicalSolutionName(row.solucion))
+      : canonicalSolutionName(row.solucion);
+    const key = `${norm(canonicalEntity)}|${norm(canonicalSolSeed)}`;
     const seed: StatusEntry = { status: row.status, fecha: "28/05/2026" };
     if (!statusByKey.has(key)) {
       statusByKey.set(key, [seed]);
