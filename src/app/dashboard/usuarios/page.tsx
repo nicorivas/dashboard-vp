@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { UsuariosView } from "@/components/UsuariosView";
 import { resolveUser } from "@/lib/partner-mapping";
-import { canManageUsers, getSessionEmail } from "@/lib/admin-users";
+import { canManageUsers, canEditPartnerRole, getSessionEmail } from "@/lib/admin-users";
 import type { ResolvedUser } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +13,9 @@ export default async function UsuariosPage() {
 
   const user = resolveUser(email);
 
-  // La gestión de usuarios está restringida a la allowlist (no a todos los
-  // admins). Si el email no está autorizado, mostramos la sección bloqueada
-  // dentro del Shell para no filtrar la existencia de la ruta.
-  if (!canManageUsers(email)) {
+  // La sección es visible para todo el equipo FE (canEditPartnerRole). Si el
+  // email no pertenece a FE, mostramos la pantalla bloqueada dentro del Shell.
+  if (!canEditPartnerRole(email)) {
     const fallbackUser: ResolvedUser =
       user ?? { role: "partner", partner: "—", label: "Empresa", subLabel: "—" };
     return (
@@ -34,7 +33,7 @@ export default async function UsuariosPage() {
 
   return (
     <Shell user={user as ResolvedUser} email={email}>
-      <UsuariosView />
+      <UsuariosView canManageUsers={canManageUsers(email)} />
     </Shell>
   );
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SignOutButton } from "./SignOutButton";
 import { RefreshButton } from "./RefreshButton";
 import { NavTabs } from "./NavTabs";
-import { canManageUsers } from "@/lib/admin-users";
+import { canManageUsers, canEditPartnerRole } from "@/lib/admin-users";
 import type { ResolvedUser } from "@/lib/types";
 
 export function Shell({
@@ -51,7 +51,7 @@ export function Shell({
         </div>
         {user.role === "admin" && (
           <div className="mx-auto max-w-7xl px-6">
-            <NavTabs canManageUsers={canManageUsers(email)} />
+            <NavTabs canManageUsers={canManageUsers(email)} canEditPartnerRole={canEditPartnerRole(email)} />
           </div>
         )}
       </header>

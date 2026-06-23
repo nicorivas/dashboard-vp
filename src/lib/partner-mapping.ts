@@ -38,11 +38,24 @@ const EMAIL_TO_PARTNER: Record<string, string> = {
   "gonzalo.soto@bci.cl": "BCI",
 };
 
-export function resolveUser(email: string | null | undefined): ResolvedUser | null {
+export function resolveUser(
+  email: string | null | undefined,
+  appMeta?: Record<string, unknown> | null
+): ResolvedUser | null {
   if (!email) return null;
   const normalized = email.trim().toLowerCase();
   if (!normalized) return null;
   const domain = normalized.split("@")[1] ?? "";
+
+  // 0. Override guardado en app_metadata (establecido por admin desde gestión de usuarios).
+  const metaOverride =
+    typeof appMeta?.partner_override === "string" && appMeta.partner_override.length > 0
+      ? appMeta.partner_override
+      : null;
+  if (metaOverride) {
+    const canonical = canonicalPartner(metaOverride) ?? metaOverride;
+    return { role: "partner", partner: canonical, label: "Empresa", subLabel: canonical };
+  }
 
   // 1. Override explícito por email — siempre lo trato como empresa.
   if (EMAIL_TO_PARTNER[normalized]) {

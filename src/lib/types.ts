@@ -151,4 +151,7 @@ export type DashboardUser = {
   createdFromDashboard: boolean;
   /** Rol/socio que `resolveUser` asigna a este email — para referencia visual. */
   resolvedLabel: string;
+  /** Override de socio almacenado en `app_metadata.partner_override`. Tiene
+   *  precedencia sobre la detección por dominio. `null` si no hay override. */
+  partnerOverride: string | null;
 };

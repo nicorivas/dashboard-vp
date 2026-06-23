@@ -20,7 +20,20 @@ export const USER_MANAGER_EMAILS = new Set<string>(["nicolas.rivas@feconsulting.
 
 export function canManageUsers(email: string | null | undefined): boolean {
   if (!email) return false;
-  return USER_MANAGER_EMAILS.has(email.trim().toLowerCase());
+  const normalized = email.trim().toLowerCase();
+  const domain = normalized.split("@")[1] ?? "";
+  return domain === "feconsulting.cl" || USER_MANAGER_EMAILS.has(normalized);
+}
+
+/**
+ * Pueden editar el socio/rol de cualquier usuario no-FE desde la sección de
+ * usuarios. Incluye a todo el equipo @feconsulting.cl (no sólo Nicolas).
+ */
+export function canEditPartnerRole(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  const domain = normalized.split("@")[1] ?? "";
+  return domain === "feconsulting.cl" || canManageUsers(normalized);
 }
 
 /**

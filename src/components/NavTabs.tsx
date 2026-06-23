@@ -17,14 +17,16 @@ const USERS_TAB: { href: string; label: string; matchExact?: boolean } = {
 export function NavTabs({
   visible = true,
   canManageUsers = false,
+  canEditPartnerRole = false,
 }: {
   visible?: boolean;
-  /** Muestra la pestaña "Usuarios" — sólo para la allowlist de gestión. */
+  /** Muestra la pestaña "Usuarios" — para la allowlist de gestión o cualquier FE. */
   canManageUsers?: boolean;
+  canEditPartnerRole?: boolean;
 }) {
   const pathname = usePathname();
   if (!visible) return null;
-  const tabs = canManageUsers ? [...TABS, USERS_TAB] : TABS;
+  const tabs = canManageUsers || canEditPartnerRole ? [...TABS, USERS_TAB] : TABS;
   return (
     <nav className="flex items-center gap-1 border-b border-gray-200">
       {tabs.map((t) => {

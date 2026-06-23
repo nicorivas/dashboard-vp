@@ -29,18 +29,20 @@ export const dynamic = "force-dynamic";
 export default async function SolutionDetailPage({ params }: { params: { slug: string } }) {
   const bypass = process.env.BYPASS_AUTH === "1";
   let userEmail: string | null = null;
+  let appMeta: Record<string, unknown> = {};
   if (bypass) {
     userEmail = process.env.BYPASS_USER || "valentina.galiano@feconsulting.cl";
   } else {
     const supabase = createClient();
     const {
-      data: { user },
+      data: { user: authUser },
     } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
-    userEmail = user.email ?? null;
+    if (!authUser) redirect("/login");
+    userEmail = authUser.email ?? null;
+    appMeta = (authUser.app_metadata ?? {}) as Record<string, unknown>;
   }
 
-  const user = resolveUser(userEmail);
+  const user = resolveUser(userEmail, appMeta);
   if (!user) redirect("/dashboard");
 
   const meta = findSolutionBySlug(params.slug);

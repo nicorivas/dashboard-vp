@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAggregate, fetchMetricas, fetchEvaluaciones } from "@/lib/sheets";
 import { resolveUser, filterSummariesForUser } from "@/lib/partner-mapping";
+import { totalPymeAcum } from "@/lib/pyme-targets";
 import { Shell } from "@/components/Shell";
 import { ResumenView } from "@/components/ResumenView";
 import { SociosView } from "@/components/SociosView";
@@ -12,18 +13,20 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const bypass = process.env.BYPASS_AUTH === "1";
   let userEmail: string | null = null;
+  let appMeta: Record<string, unknown> = {};
   if (bypass) {
     userEmail = process.env.BYPASS_USER || "valentina.galiano@feconsulting.cl";
   } else {
     const supabase = createClient();
     const {
-      data: { user },
+      data: { user: authUser },
     } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
-    userEmail = user.email ?? null;
+    if (!authUser) redirect("/login");
+    userEmail = authUser.email ?? null;
+    appMeta = (authUser.app_metadata ?? {}) as Record<string, unknown>;
   }
 
-  const user = resolveUser(userEmail);
+  const user = resolveUser(userEmail, appMeta);
   if (!user) {
     return (
       <UnauthorizedShell email={userEmail}>
@@ -43,6 +46,7 @@ export default async function DashboardPage() {
   let errorMsg: string | null = null;
   let metricas: Awaited<ReturnType<typeof fetchMetricas>> = null;
   let evalRows: Awaited<ReturnType<typeof fetchEvaluaciones>> = [];
+  let grandAcum = 0;
 
   try {
     const [agg, met, ev] = await Promise.all([fetchAggregate(), fetchMetricas(), fetchEvaluaciones()]);
@@ -51,6 +55,7 @@ export default async function DashboardPage() {
     fetchedAt = agg.fetchedAt;
     metricas = met;
     evalRows = ev;
+    grandAcum = totalPymeAcum([...agg.summaries, ...agg.partnerSummaries]).total;
   } catch (err) {
     errorMsg = err instanceof Error ? err.message : "Error leyendo el Sheet";
   }
@@ -66,9 +71,9 @@ export default async function DashboardPage() {
 
       {/* Admin: Resumen agregado. Partner: vista de sus soluciones (filtradas). */}
       {user.role === "admin" ? (
-        <ResumenView user={user} summaries={summaries} partnerSummaries={partnerSummaries} metricas={metricas} />
+        <ResumenView user={user} summaries={summaries} partnerSummaries={partnerSummaries} metricas={metricas} evalRows={evalRows} />
       ) : (
-        <SociosView user={user} summaries={summaries} evalRows={evalRows} />
+        <SociosView user={user} summaries={summaries} evalRows={evalRows} metricas={metricas} grandAcum={grandAcum} />
       )}
     </Shell>
   );
