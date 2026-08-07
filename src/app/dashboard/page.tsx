@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { fetchAggregate, fetchMetricas, fetchEvaluaciones } from "@/lib/sheets";
+import { fetchAggregate, fetchMetricas, fetchEvaluaciones, fetchHito } from "@/lib/sheets";
+import type { HitoData } from "@/lib/sheets";
 import { resolveUser, filterSummariesForUser } from "@/lib/partner-mapping";
 import { totalPymeAcum } from "@/lib/pyme-targets";
 import { Shell } from "@/components/Shell";
@@ -47,15 +48,19 @@ export default async function DashboardPage() {
   let metricas: Awaited<ReturnType<typeof fetchMetricas>> = null;
   let evalRows: Awaited<ReturnType<typeof fetchEvaluaciones>> = [];
   let grandAcum = 0;
+  let fechaUltimaAdquisicion = "—";
+  let hito: HitoData | null = null;
 
   try {
-    const [agg, met, ev] = await Promise.all([fetchAggregate(), fetchMetricas(), fetchEvaluaciones()]);
+    const [agg, met, ev, hit] = await Promise.all([fetchAggregate(), fetchMetricas(), fetchEvaluaciones(), fetchHito()]);
     summaries = filterSummariesForUser(agg.summaries, user);
     partnerSummaries = agg.partnerSummaries;
     fetchedAt = agg.fetchedAt;
     metricas = met;
     evalRows = ev;
     grandAcum = totalPymeAcum([...agg.summaries, ...agg.partnerSummaries]).total;
+    fechaUltimaAdquisicion = agg.fechaUltimaAdquisicion;
+    hito = hit;
   } catch (err) {
     errorMsg = err instanceof Error ? err.message : "Error leyendo el Sheet";
   }
@@ -71,9 +76,9 @@ export default async function DashboardPage() {
 
       {/* Admin: Resumen agregado. Partner: vista de sus soluciones (filtradas). */}
       {user.role === "admin" ? (
-        <ResumenView user={user} summaries={summaries} partnerSummaries={partnerSummaries} metricas={metricas} evalRows={evalRows} />
+        <ResumenView user={user} summaries={summaries} partnerSummaries={partnerSummaries} metricas={metricas} evalRows={evalRows} fechaUltimaAdquisicion={fechaUltimaAdquisicion} hito={hito} />
       ) : (
-        <SociosView user={user} summaries={summaries} evalRows={evalRows} metricas={metricas} grandAcum={grandAcum} />
+        <SociosView user={user} summaries={summaries} evalRows={evalRows} metricas={metricas} grandAcum={grandAcum} fechaUltimaAdquisicion={fechaUltimaAdquisicion} hito={hito} />
       )}
     </Shell>
   );

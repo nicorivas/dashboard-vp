@@ -4,6 +4,7 @@ import {
   canEditPartnerRole,
   createAdminClient,
   genPassword,
+  getLoginStatsByUser,
   getSessionEmail,
 } from "@/lib/admin-users";
 import { resolveUser } from "@/lib/partner-mapping";
@@ -47,6 +48,10 @@ export async function GET() {
     const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
     if (error) throw error;
 
+    // Si la tabla `login_events` todavía no existe (ver supabase/login_events.sql),
+    // seguimos mostrando la lista de usuarios sin historial en vez de romper el endpoint.
+    const loginStatsByUser = await getLoginStatsByUser().catch(() => new Map());
+
     const users: DashboardUser[] = data.users
       .map((u) => {
         const meta = (u.app_metadata ?? {}) as Record<string, unknown>;
@@ -67,6 +72,7 @@ export async function GET() {
           createdFromDashboard: meta.created_from_dashboard === true,
           resolvedLabel: labelFor(u.email, partnerOverride),
           partnerOverride,
+          loginStats: loginStatsByUser.get(u.id) ?? null,
         };
       })
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));

@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient as createSupabaseServer } from "@/lib/supabase/server";
+import type { LoginStats } from "@/lib/types";
 
 /**
  * Gestión de usuarios del dashboard — sólo server-side.
@@ -49,6 +50,73 @@ export async function getSessionEmail(): Promise<string | null> {
     data: { user },
   } = await supabase.auth.getUser();
   return user?.email?.toLowerCase() ?? null;
+}
+
+/**
+ * Igual que `getSessionEmail` pero también devuelve el id del usuario, para
+ * poder registrar el evento de login en `login_events`. `null` en modo
+ * BYPASS_AUTH — ahí no hay usuario real de Supabase, así que no se registra.
+ */
+export async function getSessionUser(): Promise<{ id: string; email: string } | null> {
+  if (process.env.BYPASS_AUTH === "1") return null;
+  const supabase = createSupabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) return null;
+  return { id: user.id, email: user.email.toLowerCase() };
+}
+
+/**
+ * Registra un ingreso en `login_events` (tabla propia, ver README/SQL en
+ * `supabase/login_events.sql`). Silenciosa ante errores: un fallo acá nunca
+ * debe bloquear el login.
+ */
+export async function recordLoginEvent(userId: string, email: string): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    await admin.from("login_events").insert({ user_id: userId, email });
+  } catch {
+    // No bloquear el login por un problema de tracking.
+  }
+}
+
+const HISTORY_PER_USER = 20;
+
+/**
+ * Trae los últimos ingresos registrados (todas las cuentas) y los agrupa por
+ * `user_id`. Limitado a las últimas `sampleSize` filas para no traer toda la
+ * tabla en cuentas con mucha antigüedad.
+ */
+export async function getLoginStatsByUser(
+  sampleSize = 5000
+): Promise<Map<string, LoginStats>> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("login_events")
+    .select("user_id, created_at")
+    .order("created_at", { ascending: false })
+    .limit(sampleSize);
+  if (error) throw error;
+
+  const now = Date.now();
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+  const stats = new Map<string, LoginStats>();
+  for (const row of data ?? []) {
+    const userId = row.user_id as string;
+    const createdAt = row.created_at as string;
+    const ts = new Date(createdAt).getTime();
+
+    const entry = stats.get(userId) ?? { total: 0, last7d: 0, last30d: 0, history: [] };
+    entry.total += 1;
+    if (ts >= sevenDaysAgo) entry.last7d += 1;
+    if (ts >= thirtyDaysAgo) entry.last30d += 1;
+    if (entry.history.length < HISTORY_PER_USER) entry.history.push(createdAt);
+    stats.set(userId, entry);
+  }
+  return stats;
 }
 
 /**

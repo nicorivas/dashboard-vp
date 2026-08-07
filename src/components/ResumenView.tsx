@@ -1,7 +1,9 @@
 import { totalsByEje, totalPymeAcum, totalPymeMeta } from "@/lib/pyme-targets";
-import type { PartnerSummary, ResolvedUser, SolutionSummary } from "@/lib/types";
+import type { EvalSemana, PartnerSummary, ResolvedUser, SolutionSummary } from "@/lib/types";
 import { EJES } from "@/lib/types";
-import type { MetricasData } from "@/lib/sheets";
+import type { HitoData, MetricasData } from "@/lib/sheets";
+import { EvaluacionSemanalTable } from "@/components/EvaluacionSemanalTable";
+import { MetricasAcumuladoCharts } from "@/components/MetricasAcumuladoCharts";
 
 const EJE_COLOR: Record<string, string> = {
   Capital: "from-amber-50 to-white border-amber-200 text-amber-800",
@@ -48,6 +50,7 @@ type Row = {
   eje: string;
   acum: number | null;
   meta: number | null;
+  hasFormReport: boolean;
   actoresAdicionales: string[];
   /** Si es una fila de co-actor, nombre del actor primario */
   coActorDe: string | null;
@@ -58,11 +61,17 @@ export function ResumenView({
   summaries,
   partnerSummaries,
   metricas,
+  evalRows = [],
+  fechaUltimaAdquisicion = "—",
+  hito = null,
 }: {
   user: ResolvedUser;
   summaries: SolutionSummary[];
   partnerSummaries: PartnerSummary[];
   metricas: MetricasData | null;
+  evalRows?: EvalSemana[];
+  fechaUltimaAdquisicion?: string;
+  hito?: HitoData | null;
 }) {
   const all = [...summaries, ...partnerSummaries];
   const byEje = totalsByEje(all);
@@ -73,16 +82,16 @@ export function ResumenView({
   const rows: Row[] = [];
   for (const s of summaries) {
     const eje = s.eje?.trim() || "Sin eje";
-    rows.push({ tipo: "Socio", entity: s.socio, solucion: s.solucion, eje, acum: s.pymeAcum, meta: s.pymeMeta, actoresAdicionales: s.actoresAdicionales ?? [], coActorDe: null });
+    rows.push({ tipo: "Socio", entity: s.socio, solucion: s.solucion, eje, acum: s.pymeAcum, meta: s.pymeMeta, hasFormReport: s.pymeHasFormReport, actoresAdicionales: s.actoresAdicionales ?? [], coActorDe: null });
     for (const actor of s.actoresAdicionales ?? []) {
-      rows.push({ tipo: "Socio", entity: actor, solucion: s.solucion, eje, acum: s.pymeAcum, meta: s.pymeMeta, actoresAdicionales: [s.socio], coActorDe: s.socio });
+      rows.push({ tipo: "Socio", entity: actor, solucion: s.solucion, eje, acum: s.pymeAcum, meta: s.pymeMeta, hasFormReport: s.pymeHasFormReport, actoresAdicionales: [s.socio], coActorDe: s.socio });
     }
   }
   for (const p of partnerSummaries) {
     const eje = p.eje?.trim() || "Sin eje";
-    rows.push({ tipo: "Partner", entity: p.partner, solucion: p.solucion, eje, acum: p.pymeAcum, meta: p.pymeMeta, actoresAdicionales: p.actoresAdicionales ?? [], coActorDe: null });
+    rows.push({ tipo: "Partner", entity: p.partner, solucion: p.solucion, eje, acum: p.pymeAcum, meta: p.pymeMeta, hasFormReport: p.pymeHasFormReport, actoresAdicionales: p.actoresAdicionales ?? [], coActorDe: null });
     for (const actor of p.actoresAdicionales ?? []) {
-      rows.push({ tipo: "Partner", entity: actor, solucion: p.solucion, eje, acum: p.pymeAcum, meta: p.pymeMeta, actoresAdicionales: [p.partner], coActorDe: p.partner });
+      rows.push({ tipo: "Partner", entity: actor, solucion: p.solucion, eje, acum: p.pymeAcum, meta: p.pymeMeta, hasFormReport: p.pymeHasFormReport, actoresAdicionales: [p.partner], coActorDe: p.partner });
     }
   }
   rows.sort((a, b) => {
@@ -163,57 +172,117 @@ export function ResumenView({
         </div>
       </section>
 
-      {metricas && (
-        <section className="mb-8">
+      <section className="mb-8">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
             Métricas Valor Pyme
           </h2>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {[
-              {
-                key: "trafico",
-                title: "Tráfico",
-                desc: "Pymes que entran a Valorpyme.cl",
-                value: metricas.trafico,
-              },
-              {
-                key: "alcance",
-                title: "Alcance",
-                desc: "Pymes que se registran en Valorpyme.cl",
-                value: metricas.alcance,
-              },
-              {
-                key: "adquisicion",
-                title: "Adquisición",
-                desc: "Acumulada de Pymes que se registran en las soluciones",
-                value: metricas.adquisicion,
-              },
-              {
-                key: "adopcion",
-                title: "Adopción",
-                desc: "Pymes que usan las soluciones activamente",
-                value: metricas.adopcion,
-              },
-            ].map((m) => (
-              <div
-                key={m.key}
-                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                  {m.title}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+
+            {/* Tráfico */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Tráfico semanal</p>
+              <p className="mt-0.5 text-[11px] text-gray-400">Pymes que entran a Valorpyme.cl</p>
+              <p className="mt-3 text-3xl font-bold tabular-nums text-gray-900">
+                {metricas?.trafico != null ? formatNumber(metricas.trafico) : "—"}
+              </p>
+              {metricas?.trafico2025 != null && (
+                <p className="mt-1.5 text-sm tabular-nums text-gray-400">
+                  {formatNumber(metricas.trafico2025)}{" "}
+                  <span className="text-[10px]">misma semana 2025</span>
+                  {metricas.trafico != null && metricas.trafico2025 > 0 && (() => {
+                    const pct = Math.round(((metricas.trafico! - metricas.trafico2025!) / metricas.trafico2025!) * 100);
+                    return (
+                      <span className={`ml-1.5 text-[11px] font-semibold ${pct >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        {pct >= 0 ? "+" : ""}{pct}%
+                      </span>
+                    );
+                  })()}
                 </p>
-                <p className="mt-0.5 text-[11px] text-gray-400">{m.desc}</p>
-                <p className="mt-3 text-3xl font-semibold tabular-nums text-gray-900">
-                  {m.value != null ? formatNumber(m.value) : "—"}
+              )}
+              {metricas?.traficoAcum2026 != null && (
+                <p className="mt-1 text-sm tabular-nums text-gray-600">
+                  <span className="font-medium">{formatNumber(metricas.traficoAcum2026)}</span>{" "}
+                  <span className="text-[10px] text-gray-400">acum. 2026</span>
                 </p>
-                <p className="mt-1 text-[10px] uppercase tracking-wider text-gray-400">
-                  Actualizado {metricas.fecha}
+              )}
+              <p className="mt-3 border-t border-gray-100 pt-2 text-xs text-gray-400">
+                Actualizado hasta el día {metricas?.fechaDomingo ?? "—"}
+              </p>
+            </div>
+
+            {/* Alcance */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Alcance semanal</p>
+              <p className="mt-0.5 text-[11px] text-gray-400">Pymes que se registran en Valorpyme.cl</p>
+              <p className="mt-3 text-3xl font-bold tabular-nums text-gray-900">
+                {metricas?.alcance != null ? formatNumber(metricas.alcance) : "—"}
+              </p>
+              {metricas?.alcance2025 != null && (
+                <p className="mt-1.5 text-sm tabular-nums text-gray-400">
+                  {formatNumber(metricas.alcance2025)}{" "}
+                  <span className="text-[10px]">misma semana 2025</span>
+                  {metricas.alcance != null && metricas.alcance2025 > 0 && (() => {
+                    const pct = Math.round(((metricas.alcance! - metricas.alcance2025!) / metricas.alcance2025!) * 100);
+                    return (
+                      <span className={`ml-1.5 text-[11px] font-semibold ${pct >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        {pct >= 0 ? "+" : ""}{pct}%
+                      </span>
+                    );
+                  })()}
                 </p>
+              )}
+              {metricas?.alcanceAcum2026 != null && (
+                <p className="mt-1 text-sm tabular-nums text-gray-600">
+                  <span className="font-medium">{formatNumber(metricas.alcanceAcum2026)}</span>{" "}
+                  <span className="text-[10px] text-gray-400">acum. 2026</span>
+                </p>
+              )}
+              <p className="mt-3 border-t border-gray-100 pt-2 text-xs text-gray-400">
+                Actualizado hasta el día {metricas?.fechaDomingo ?? "—"}
+              </p>
+            </div>
+
+            {/* Adquisición — suma de pymeAcum de todas las soluciones (socios + partners) */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Adquisición</p>
+              <p className="mt-0.5 text-[11px] text-gray-400">
+                Total PYMEs adquiridas en soluciones (socios + partners)
+              </p>
+              <p className="mt-3 text-3xl font-bold tabular-nums text-gray-900">
+                {grandAcum > 0 ? formatNumber(grandAcum) : "—"}
+              </p>
+              <p className="mt-3 border-t border-gray-100 pt-2 text-xs text-gray-400">
+                Actualizado hasta el día {fechaUltimaAdquisicion}
+              </p>
+            </div>
+
+            {/* Hito — tarjeta condicional desde pestaña Hito del sheet */}
+            {hito && (
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{hito.titulo}</p>
+                {hito.trafico != null && (
+                  <>
+                    <p className="mt-0.5 text-[11px] text-gray-400">Tráfico</p>
+                    <p className="mt-3 text-3xl font-bold tabular-nums text-gray-900">
+                      {formatNumber(hito.trafico)}
+                    </p>
+                  </>
+                )}
+                {hito.registros != null && (
+                  <p className="mt-1.5 text-sm tabular-nums text-gray-600">
+                    <span className="font-medium">{formatNumber(hito.registros)}</span>{" "}
+                    <span className="text-[10px] text-gray-400">registros</span>
+                  </p>
+                )}
               </div>
-            ))}
+            )}
+
           </div>
+
+          {metricas?.series2026 && metricas.series2026.length > 0 && (
+            <MetricasAcumuladoCharts series2026={metricas.series2026} />
+          )}
         </section>
-      )}
 
       {/* Tabla por solución */}
       <section>
@@ -298,7 +367,11 @@ export function ResumenView({
                       </td>
                       <td className="px-3 py-2 font-medium text-gray-900">{r.solucion}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-900">
-                        {r.acum != null && r.acum > 0 ? formatNumber(r.acum) : "—"}
+                        {r.acum != null && r.acum > 0
+                          ? formatNumber(r.acum)
+                          : r.hasFormReport
+                            ? "0"
+                            : <span className="italic text-gray-400 text-[11px]">Sin reporte</span>}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-900">
                         {r.meta != null && r.meta > 0 ? formatNumber(r.meta) : "—"}
@@ -334,6 +407,15 @@ export function ResumenView({
           aún, aparece como —.
         </p>
       </section>
+
+      {evalRows.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
+            Evaluación semanal de socios
+          </h2>
+          <EvaluacionSemanalTable rows={evalRows} />
+        </section>
+      )}
     </>
   );
 }

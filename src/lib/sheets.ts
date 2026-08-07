@@ -18,6 +18,8 @@ const GANTT_TAB = "3. Gantt por solución";
 const CONSOLIDADO_TAB = "4. Consolidado (etapas x sol)";
 const KPIS_TAB = "KPIs_PYMEs";
 const KPIS_PARTNERS_TAB = "KPIs_PYMEs_Partners";
+const REPORTE_SOCIOS_TAB = "Reportes por mes";
+const REPORTE_PARTNERS_TAB = "Reportes por mes";
 const MASTER_TAB = "Lista correcta de nombres";
 const STATUS_TAB = "Status";
 const CACHE_TTL_MS = 30 * 1000;
@@ -29,6 +31,7 @@ type AggregateData = {
   summaries: SolutionSummary[];
   partnerSummaries: PartnerSummary[];
   fetchedAt: number;
+  fechaUltimaAdquisicion: string;
 };
 
 /** Fila de la hoja maestra "Lista correcta de nombres". */
@@ -270,12 +273,40 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
     kpisPartnerValues = partnersRes.data.values ?? [];
   }
 
+  // Hojas de respuestas del formulario de monitoreo mensual.
+  // Se leen en paralelo junto con la hoja maestra; si la pestaña no existe,
+  // el catch devuelve array vacío sin romper el resto del fetch.
+  const fetchReporteSocios = sheets.spreadsheets.values
+    .get({
+      spreadsheetId: sheetId,
+      range: `'${REPORTE_SOCIOS_TAB}'!A1:Z500`,
+      valueRenderOption: "UNFORMATTED_VALUE",
+      dateTimeRenderOption: "FORMATTED_STRING",
+    })
+    .then((r) => r.data.values ?? ([] as any[][]))
+    .catch(() => [] as any[][]);
+
+  const fetchReportePartners = sheets.spreadsheets.values
+    .get({
+      spreadsheetId: partnersSheetId,
+      range: `'${REPORTE_PARTNERS_TAB}'!A1:Z500`,
+      valueRenderOption: "UNFORMATTED_VALUE",
+      dateTimeRenderOption: "FORMATTED_STRING",
+    })
+    .then((r) => r.data.values ?? ([] as any[][]))
+    .catch(() => [] as any[][]);
+
   // Hoja maestra: nombres canónicos + visibilidad. Se carga en paralelo.
-  const [masterList, ganttParsed, kpisBySlug] = await Promise.all([
+  const [masterList, ganttParsed, kpisBySlug, reporteSociosValues, reportePartnersValues] = await Promise.all([
     fetchMasterList(force),
     Promise.resolve(parseGantt(ganttValues)),
     Promise.resolve(parseKpiSheet(kpisValues, "socio")),
+    fetchReporteSocios,
+    fetchReportePartners,
   ]);
+
+  // Aplicar datos del formulario de monitoreo sobre los KPIs de socios.
+  mergeReporteIntoKpis(kpisBySlug, parseReporteSheet(reporteSociosValues, "socio"));
   const { weeks, rows: ganttRows, ejeByTab } = ganttParsed;
 
   // Índices de la hoja maestra para lookup rápido.
@@ -375,6 +406,7 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
         pymeMonthly: tabKpi.kpis.pymeMonthly,
         pymeAcum: tabKpi.kpis.pymeAcum,
         pymeAcumMonth: tabKpi.kpis.pymeAcumMonth,
+        pymeHasFormReport: tabKpi.kpis.pymeHasFormReport,
       };
     })
     .filter((s) => {
@@ -383,12 +415,25 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
       return masterVisible.has(key);
     });
 
-  const partnerSummariesRaw = buildPartnerSummaries(kpisPartnerValues);
+  // Parsear KPIs de partners y aplicar datos del formulario de monitoreo.
+  const partnerKpiMap = parseKpiSheet(kpisPartnerValues, "partner");
+  mergeReporteIntoKpis(partnerKpiMap, parseReporteSheet(reportePartnersValues, "partner"));
+  const partnerSummariesRaw: PartnerSummary[] = Array.from(partnerKpiMap.values()).map((r) => ({
+    partner: r.entity,
+    solucion: r.solucion,
+    slug: r.slug,
+    statusHistory: [],
+    actoresAdicionales: [],
+    ...r.kpis,
+  }));
   const partnerSummaries = partnerSummariesRaw
     .map((p) => {
-      const masterKey = `${norm(p.partner)}|${norm(p.solucion)}`;
+      // Canonicalizar el nombre del partner (igual que en el loop de masterNames)
+      // para tolerar variantes de capitalización/espaciado entre las dos pestañas.
+      const canonicalP = canonicalPartner(p.partner) ?? p.partner;
+      const masterKey = `${norm(canonicalP)}|${norm(p.solucion)}`;
       const canonical = masterNames.get(masterKey);
-      const partner  = canonical?.entity   ?? p.partner;
+      const partner  = canonical?.entity   ?? canonicalP;
       const solucion = canonical?.solucion ?? p.solucion;
       const statusKey = `${norm(partner)}|${norm(solucion)}`;
       const actoresAdicionales = actoresAdicionalesByKey.get(statusKey) ?? actoresAdicionalesByKey.get(masterKey) ?? [];
@@ -406,12 +451,15 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
       return masterVisible.has(key);
     });
 
+  const fechaUltimaAdquisicion = latestReporteDate([reporteSociosValues, reportePartnersValues]);
+
   const data: AggregateData = {
     weeks,
     ganttRows,
     summaries,
     partnerSummaries,
     fetchedAt: Date.now(),
+    fechaUltimaAdquisicion,
   };
   aggregateCache = { data, expiresAt: Date.now() + CACHE_TTL_MS };
   return data;
@@ -508,11 +556,133 @@ function parseKpiSheet(values: any[][], mode: "socio" | "partner"): Map<string, 
       pymeMonthly: monthly,
       pymeAcum: acum,
       pymeAcumMonth: acumMonth,
+      pymeHasFormReport: false,
     };
 
     out.set(slug, { entity, solucion: canonicalSolucion, slug, kpis });
   }
   return out;
+}
+
+/**
+ * Parsea la hoja de respuestas del formulario de monitoreo mensual
+ * ("Reporte por mes" para socios, "Reportes por mes" para partners).
+ *
+ * Columnas clave que se detectan por header flexible:
+ *   - Identificación socio/partner → entidad
+ *   - Nombre de la solución → solución
+ *   - Mes al que reporta → mes (0-11)
+ *   - Adquirieron (columna explícita) → adquisición primaria
+ *   - Nuevos registros → adquisición fallback
+ *
+ * @returns Map slug → array[12] con adquisición por mes (null = sin dato)
+ */
+function parseReporteSheet(values: any[][], mode: "socio" | "partner"): Map<string, (number | null)[]> {
+  const out = new Map<string, (number | null)[]>();
+  if (!values.length) return out;
+
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(values.length, 5); i++) {
+    const row = (values[i] || []).map((c: any) => s(c).toLowerCase());
+    const hasEntity = row.some((c: string) => c.includes("identificaci"));
+    const hasSol = row.some((c: string) => c.includes("soluc"));
+    const hasMes = row.some((c: string) => c.includes("mes"));
+    if (hasEntity && hasSol && hasMes) { headerIdx = i; break; }
+  }
+  if (headerIdx < 0) return out;
+
+  const header = (values[headerIdx] || []).map((c: any) => s(c).toLowerCase());
+  const findCol = (...cands: string[]) => {
+    for (const cand of cands) {
+      const idx = header.findIndex((h: string) => h.includes(cand));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+
+  const colEntity      = findCol("identificaci");
+  const colSol         = findCol("nombre de la soluc", "nombre soluc");
+  // "mes al que está reportando" es más específico que "mes" a secas
+  const colMes         = findCol("mes al que");
+  // Socios: "alcanzadas" es la métrica principal (col G del formulario).
+  // Partners: "nuevos registros" ya funciona — se mantiene sin cambios.
+  const colAlcanzadas  = findCol("alcanzadas", "número estimado");
+  const colAdq         = findCol("adquirieron");
+  const colNuevos      = findCol("nuevos registros");
+
+  if (colEntity < 0 || colSol < 0 || colMes < 0) return out;
+
+  const MONTH_NAMES: Record<string, number> = {
+    enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+    julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11,
+  };
+
+  for (let i = headerIdx + 1; i < values.length; i++) {
+    const row = values[i] || [];
+    const entityRaw  = s(row[colEntity]);
+    const solucionRaw = s(row[colSol]);
+    const mesRaw = s(row[colMes])
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .trim();
+    if (!entityRaw || !solucionRaw || !mesRaw) continue;
+
+    const mesIdx = MONTH_NAMES[mesRaw];
+    if (mesIdx == null) continue;
+
+    let val: number | null = null;
+    if (mode === "socio") {
+      // Socios: nuevos registros → adquirieron
+      if (colNuevos >= 0) val = parseNumberOrNull(row[colNuevos]);
+      if (val == null && colAdq >= 0) val = parseNumberOrNull(row[colAdq]);
+    } else {
+      // Partners: sin cambios (nuevos registros funciona bien)
+      if (colAdq >= 0) val = parseNumberOrNull(row[colAdq]);
+      if (val == null && colNuevos >= 0) val = parseNumberOrNull(row[colNuevos]);
+    }
+
+    const entity = mode === "socio" ? (canonicalPartner(entityRaw) ?? entityRaw) : entityRaw;
+    const canonicalSol = canonicalSolutionName(solucionRaw);
+    const slug = mode === "socio"
+      ? solutionSlug(entity, canonicalSol)
+      : slugify(`partner-${entity}-${canonicalSol}`);
+
+    if (!out.has(slug)) out.set(slug, Array(12).fill(null));
+    // La última fila para el mismo mes toma precedencia (orden cronológico en el form)
+    if (val != null) out.get(slug)![mesIdx] = val;
+  }
+
+  return out;
+}
+
+/**
+ * Aplica datos del formulario de reporte sobre el mapa de KPIs.
+ * Para cada mes con dato reportado, el formulario toma precedencia sobre el tab KPIs.
+ */
+function mergeReporteIntoKpis(kpiMap: Map<string, KpiRow>, reporteMap: Map<string, (number | null)[]>): void {
+  for (const [slug, reporteMonthly] of reporteMap) {
+    const kpi = kpiMap.get(slug);
+    if (!kpi) continue;
+    kpi.kpis.pymeHasFormReport = true;
+
+    const merged = kpi.kpis.pymeMonthly.map((existing, i) =>
+      reporteMonthly[i] != null ? reporteMonthly[i] : existing
+    );
+
+    let acum: number | null = null;
+    let acumMonth = -1;
+    for (let m = 0; m < 12; m++) {
+      if (merged[m] != null) {
+        acum = (acum ?? 0) + (merged[m] as number);
+        acumMonth = m;
+      }
+    }
+
+    kpi.kpis.pymeMonthly = merged;
+    kpi.kpis.pymeAcum = acum;
+    kpi.kpis.pymeAcumMonth = acumMonth;
+  }
 }
 
 function parseStatusSheet(values: any[][]): Array<{ partner: string; solucion: string; status: string; fecha: string }> {
@@ -553,17 +723,7 @@ function parseStatusSheet(values: any[][]): Array<{ partner: string; solucion: s
   return out;
 }
 
-function buildPartnerSummaries(values: any[][]): PartnerSummary[] {
-  const map = parseKpiSheet(values, "partner");
-  return Array.from(map.values()).map((r) => ({
-    partner: r.entity,
-    solucion: r.solucion,
-    slug: r.slug,
-    statusHistory: [],
-    actoresAdicionales: [],
-    ...r.kpis,
-  }));
-}
+
 
 /**
  * Convierte el valor de una celda a número.
@@ -749,6 +909,7 @@ function parseConsolidado(values: any[][], kpisBySlug: Map<string, KpiRow>): Sol
       pymeMonthly: kpi?.kpis.pymeMonthly ?? Array(12).fill(null),
       pymeAcum: kpi?.kpis.pymeAcum ?? null,
       pymeAcumMonth: kpi?.kpis.pymeAcumMonth ?? -1,
+      pymeHasFormReport: kpi?.kpis.pymeHasFormReport ?? false,
     });
   }
   return out;
@@ -872,12 +1033,26 @@ function parseDetail(tab: string, values: any[][]): SolutionDetail {
   };
 }
 
+export type MetricasSemana2026 = {
+  fecha: string;
+  traficoAcum: number | null;
+  alcanceAcum: number | null;
+  traficoAcum2025: number | null;
+  alcanceAcum2025: number | null;
+};
+
 export type MetricasData = {
   fecha: string;
+  fechaDomingo: string;
   trafico: number | null;
+  trafico2025: number | null;
+  traficoAcum2026: number | null;
   alcance: number | null;
+  alcance2025: number | null;
+  alcanceAcum2026: number | null;
   adquisicion: number | null;
   adopcion: number | null;
+  series2026: MetricasSemana2026[];
 };
 
 function parseDateCL(str: string): Date | null {
@@ -886,57 +1061,179 @@ function parseDateCL(str: string): Date | null {
   return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
 }
 
+// La columna "Semana" de Metricas admite una fecha única ("4/6/2026") o un rango
+// mensual ("1/01/26 - 31/01/26"). Para el rango se usa la fecha de cierre y se
+// normaliza a "d/m/yyyy" para que el resto del pipeline (orden, gráfico) la trate igual.
+function parseFechaMetricas(str: string): { date: Date; fecha: string } | null {
+  const single = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (single) {
+    return {
+      date: new Date(Number(single[3]), Number(single[2]) - 1, Number(single[1])),
+      fecha: str,
+    };
+  }
+  const range = str.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (range) {
+    const day = Number(range[1]);
+    const month = Number(range[2]);
+    const year = range[3].length === 2 ? 2000 + Number(range[3]) : Number(range[3]);
+    return { date: new Date(year, month - 1, day), fecha: `${day}/${month}/${year}` };
+  }
+  return null;
+}
+
+// Busca el timestamp más reciente en columna A de las hojas "Reportes por mes".
+// Google Forms guarda la fecha de envío en la columna A con formato "dd/mm/yyyy HH:mm:ss".
+function latestReporteDate(sheets: any[][][]): string {
+  let latest: Date | null = null;
+  for (const values of sheets) {
+    for (let i = 1; i < values.length; i++) {
+      const raw = s(values[i]?.[0]);
+      if (!raw) continue;
+      const d = parseDateCL(raw.split(" ")[0]);
+      if (d && (!latest || d > latest)) latest = d;
+    }
+  }
+  if (!latest) return "—";
+  return `${latest.getDate()}/${latest.getMonth() + 1}/${latest.getFullYear()}`;
+}
+
 export async function fetchMetricas(): Promise<MetricasData | null> {
   try {
     const sheets = sheetsClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: getSheetId(),
-      range: "Metricas!A1:E100",
+      range: "Metricas!A1:J200",
       valueRenderOption: "UNFORMATTED_VALUE",
       dateTimeRenderOption: "FORMATTED_STRING",
     });
     const values = res.data.values ?? [];
     if (values.length < 2) return null;
 
-    const header = (values[0] || []).map((c: unknown) => s(c).toLowerCase());
-    const findCol = (...cands: string[]): number => {
-      for (const cand of cands) {
-        const idx = header.findIndex((h: string) => h.includes(cand));
-        if (idx >= 0) return idx;
-      }
-      return -1;
-    };
-
-    const colFecha = findCol("fecha");
-    const colTrafico = findCol("tr");
-    const colAlcance = findCol("alcance");
-    const colAdquisicion = findCol("adquisici");
-    const colAdopcion = findCol("adopci");
-
-    // Find the row with the most recent date
-    let bestDate: Date | null = null;
-    let bestRow: unknown[] | null = null;
-
-    for (let i = 1; i < values.length; i++) {
-      const row = values[i] || [];
-      const fechaStr = colFecha >= 0 ? s(row[colFecha]) : "";
-      if (!fechaStr) continue;
-      const d = parseDateCL(fechaStr);
-      if (!d) continue;
-      if (!bestDate || d > bestDate) {
-        bestDate = d;
-        bestRow = row;
+    // Detección flexible del header (puede haber filas de título antes)
+    let headerIdx = 0;
+    for (let i = 0; i < Math.min(values.length, 5); i++) {
+      const row = (values[i] || []).map((c: unknown) => s(c).toLowerCase());
+      if (row.some((h: string) => h.includes("semana") || h.includes("fecha") || h.includes("tr"))) {
+        headerIdx = i;
+        break;
       }
     }
 
-    if (!bestRow || !bestDate) return null;
+    const header = (values[headerIdx] || []).map((c: unknown) => s(c).toLowerCase());
 
+    // Columna de semana puede llamarse "Semana" o "Fecha"
+    const colSemana = header.findIndex((h: string) => h.includes("semana") || h.includes("fecha"));
+    // Tráfico semanal: tiene "tr" pero NO "acum" y NO "2025"
+    const colTrafico = header.findIndex((h: string) =>
+      h.includes("tr") && !h.includes("acum") && !h.includes("2025")
+    );
+    // Tráfico 2025: tiene "2025"
+    const colTrafico2025 = header.findIndex((h: string) => h.includes("2025"));
+    // Tráfico acumulado: tiene "tr" (o "trafico") y "acum"
+    const colTraficoAcum = header.findIndex((h: string) =>
+      h.includes("tr") && h.includes("acum")
+    );
+    // Alcance semanal: tiene "alcance" pero NO "acum" y NO "2025"
+    const colAlcance = header.findIndex((h: string) =>
+      h.includes("alcance") && !h.includes("acum") && !h.includes("2025")
+    );
+    // Alcance 2025: tiene "alcance" y "2025"
+    const colAlcance2025 = header.findIndex((h: string) =>
+      h.includes("alcance") && h.includes("2025")
+    );
+    // Alcance acumulado: tiene "alcance" y "acum"
+    const colAlcanceAcum = header.findIndex((h: string) =>
+      h.includes("alcance") && h.includes("acum")
+    );
+    // Adquisición y Adopción opcionales
+    const colAdquisicion = header.findIndex((h: string) => h.includes("adquisic"));
+    const colAdopcion    = header.findIndex((h: string) => h.includes("adopc"));
+
+    // Cada campo usa el último valor no-nulo disponible entre todas las filas con fecha válida.
+    // Así, si la semana más reciente tiene campos vacíos, se muestra el valor de la semana anterior.
+    let bestDate: Date | null = null;
+    let bestFecha = "";
+    let bestTrafico: number | null = null;
+    let bestTrafico2025: number | null = null;
+    let bestTraficoAcum: number | null = null;
+    let bestAlcance: number | null = null;
+    let bestAlcance2025: number | null = null;
+    let bestAlcanceAcum: number | null = null;
+    let bestAdquisicion: number | null = null;
+    let bestAdopcion: number | null = null;
+    // Tráfico/Alcance 2025 en el sheet son valores por período (no acumulados);
+    // se acumulan aquí mismo, sumando en el mismo orden cronológico, para poder
+    // graficarlos como línea de comparación "fantasma" junto al acumulado 2026.
+    let traficoAcum2025Running = 0;
+    let alcanceAcum2025Running = 0;
+    let hasTrafico2025 = false;
+    let hasAlcance2025 = false;
+    const series2026: MetricasSemana2026[] = [];
+
+    for (let i = headerIdx + 1; i < values.length; i++) {
+      const row = values[i] || [];
+      const fechaStr = colSemana >= 0 ? s(row[colSemana]) : "";
+      if (!fechaStr) continue;
+      const parsed = parseFechaMetricas(fechaStr);
+      if (!parsed) continue;
+      const { date: d, fecha: fechaNorm } = parsed;
+      if (!bestDate || d > bestDate) { bestDate = d; bestFecha = fechaNorm; }
+
+      const t    = colTrafico     >= 0 ? parseNumberOrNull(row[colTrafico])     : null;
+      const t25  = colTrafico2025 >= 0 ? parseNumberOrNull(row[colTrafico2025]) : null;
+      const tAcm = colTraficoAcum >= 0 ? parseNumberOrNull(row[colTraficoAcum]) : null;
+      const alc  = colAlcance     >= 0 ? parseNumberOrNull(row[colAlcance])     : null;
+      const a25  = colAlcance2025 >= 0 ? parseNumberOrNull(row[colAlcance2025]) : null;
+      const aAcm = colAlcanceAcum >= 0 ? parseNumberOrNull(row[colAlcanceAcum]) : null;
+      const adq  = colAdquisicion >= 0 ? parseNumberOrNull(row[colAdquisicion]) : null;
+      const adop = colAdopcion    >= 0 ? parseNumberOrNull(row[colAdopcion])    : null;
+
+      if (t    != null) bestTrafico      = t;
+      if (t25  != null) bestTrafico2025  = t25;
+      if (tAcm != null) bestTraficoAcum  = tAcm;
+      if (alc  != null) bestAlcance      = alc;
+      if (a25  != null) bestAlcance2025  = a25;
+      if (aAcm != null) bestAlcanceAcum  = aAcm;
+      if (adq  != null) bestAdquisicion  = adq;
+      if (adop != null) bestAdopcion     = adop;
+
+      if (t25 != null) { traficoAcum2025Running += t25; hasTrafico2025 = true; }
+      if (a25 != null) { alcanceAcum2025Running += a25; hasAlcance2025 = true; }
+
+      if (d.getFullYear() === 2026) {
+        series2026.push({
+          fecha: fechaNorm,
+          traficoAcum: bestTraficoAcum != null ? Math.round(bestTraficoAcum) : null,
+          alcanceAcum: bestAlcanceAcum != null ? Math.round(bestAlcanceAcum) : null,
+          traficoAcum2025: hasTrafico2025 ? Math.round(traficoAcum2025Running) : null,
+          alcanceAcum2025: hasAlcance2025 ? Math.round(alcanceAcum2025Running) : null,
+        });
+      }
+    }
+
+    series2026.sort((a, b) => (parseDateCL(a.fecha)?.getTime() ?? 0) - (parseDateCL(b.fecha)?.getTime() ?? 0));
+
+    if (!bestDate) return null;
+
+    const daysToSunday = (7 - bestDate.getDay()) % 7;
+    const sunday = new Date(bestDate);
+    sunday.setDate(sunday.getDate() + daysToSunday);
+    const fechaDomingo = `${sunday.getDate()}/${sunday.getMonth() + 1}/${sunday.getFullYear()}`;
+
+    const ri = (v: number | null) => v != null ? Math.round(v) : null;
     return {
-      fecha: colFecha >= 0 ? s(bestRow[colFecha]) : "",
-      trafico: colTrafico >= 0 ? parseNumberOrNull(bestRow[colTrafico]) : null,
-      alcance: colAlcance >= 0 ? parseNumberOrNull(bestRow[colAlcance]) : null,
-      adquisicion: colAdquisicion >= 0 ? parseNumberOrNull(bestRow[colAdquisicion]) : null,
-      adopcion: colAdopcion >= 0 ? parseNumberOrNull(bestRow[colAdopcion]) : null,
+      fecha:           bestFecha,
+      fechaDomingo,
+      trafico:         ri(bestTrafico),
+      trafico2025:     ri(bestTrafico2025),
+      traficoAcum2026: ri(bestTraficoAcum),
+      alcance:         ri(bestAlcance),
+      alcance2025:     ri(bestAlcance2025),
+      alcanceAcum2026: ri(bestAlcanceAcum),
+      adquisicion:     ri(bestAdquisicion),
+      adopcion:        bestAdopcion,
+      series2026,
     };
   } catch (err) {
     console.warn("[fetchMetricas] No se pudo leer la pestaña Metricas.", err);
@@ -944,9 +1241,41 @@ export async function fetchMetricas(): Promise<MetricasData | null> {
   }
 }
 
+
 export function clearAllCache() {
   aggregateCache = null;
   detailCache.clear();
+}
+
+export type HitoData = {
+  titulo: string;
+  trafico: number | null;
+  registros: number | null;
+  mostrar: boolean;
+};
+
+export async function fetchHito(): Promise<HitoData | null> {
+  try {
+    const sheets = sheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: getSheetId(),
+      range: "Hito!B1:B4",
+      valueRenderOption: "UNFORMATTED_VALUE",
+    });
+    const vals = res.data.values ?? [];
+    const cell = (row: number) => vals[row]?.[0];
+    const mostrarRaw = s(cell(3)).trim().toLowerCase();
+    if (mostrarRaw !== "sí" && mostrarRaw !== "si") return null;
+    return {
+      titulo:    s(cell(0)),
+      trafico:   parseNumberOrNull(cell(1)),
+      registros: parseNumberOrNull(cell(2)),
+      mostrar:   true,
+    };
+  } catch (err) {
+    console.warn("[fetchHito] No se pudo leer la pestaña Hito.", err);
+    return null;
+  }
 }
 
 // ─── Evaluación semanal de socios ────────────────────────────────────────────

@@ -140,7 +140,11 @@ export function PartnersView({
                           </td>
                           <td className="px-3 py-2 text-sm text-gray-500">{r.solucion}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-gray-500">
-                            {r.pymeAcum != null && r.pymeAcum > 0 ? formatNumber(r.pymeAcum) : "—"}
+                            {r.pymeAcum != null && r.pymeAcum > 0
+                              ? formatNumber(r.pymeAcum)
+                              : r.pymeHasFormReport
+                                ? "0"
+                                : <span className="italic text-gray-400 text-[11px]">Sin reporte</span>}
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums text-gray-500">
                             {r.pymeMeta != null && r.pymeMeta > 0 ? formatNumber(r.pymeMeta) : "—"}
@@ -160,7 +164,11 @@ export function PartnersView({
                         <td className="px-3 py-2 text-xs text-gray-700">{r.partner}</td>
                         <td className="px-3 py-2 font-medium text-gray-900">{r.solucion}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-gray-900">
-                          {r.pymeAcum != null && r.pymeAcum > 0 ? formatNumber(r.pymeAcum) : "—"}
+                          {r.pymeAcum != null && r.pymeAcum > 0
+                            ? formatNumber(r.pymeAcum)
+                            : r.pymeHasFormReport
+                              ? "0"
+                              : <span className="italic text-gray-400 text-[11px]">Sin reporte</span>}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-gray-900">
                           {r.pymeMeta != null && r.pymeMeta > 0 ? formatNumber(r.pymeMeta) : "—"}

@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
   Check,
+  ChevronDown,
+  ChevronRight,
   Copy,
   Eye,
   EyeOff,
@@ -21,6 +23,18 @@ function fmtDate(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("es-CL", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -50,6 +64,7 @@ export function UsuariosView({ canManageUsers = false }: { canManageUsers?: bool
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [savingPartnerId, setSavingPartnerId] = useState<string | null>(null);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
     setLoadError(null);
@@ -281,6 +296,7 @@ export function UsuariosView({ canManageUsers = false }: { canManageUsers?: bool
                   {canManageUsers && <th className="px-5 py-2.5">Contraseña</th>}
                   <th className="px-5 py-2.5">Creado</th>
                   <th className="px-5 py-2.5">Último ingreso</th>
+                  <th className="px-5 py-2.5">Ingresos</th>
                   {canManageUsers && <th className="px-5 py-2.5 text-right">Acciones</th>}
                 </tr>
               </thead>
@@ -290,9 +306,12 @@ export function UsuariosView({ canManageUsers = false }: { canManageUsers?: bool
                   const hasPassword = u.initialPassword != null;
                   const isSaving = savingPartnerId === u.id;
                   const canEditRole = !isFEUser(u.email);
+                  const isHistoryOpen = expandedHistoryId === u.id;
+                  const stats = u.loginStats;
 
                   return (
-                    <tr key={u.id} className="border-b border-gray-50 last:border-0">
+                    <Fragment key={u.id}>
+                    <tr className="border-b border-gray-50 last:border-0">
                       <td className="px-5 py-3 font-medium text-gray-900">{u.email}</td>
 
                       {/* Socio / rol — con dropdown editable para usuarios no-FE */}
@@ -363,6 +382,26 @@ export function UsuariosView({ canManageUsers = false }: { canManageUsers?: bool
                       <td className="px-5 py-3 text-gray-500">{fmtDate(u.createdAt)}</td>
                       <td className="px-5 py-3 text-gray-500">{fmtDate(u.lastSignInAt)}</td>
 
+                      {/* Historial de ingresos — desde login_events, ver supabase/login_events.sql */}
+                      <td className="px-5 py-3">
+                        {stats ? (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedHistoryId(isHistoryOpen ? null : u.id)}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-gray-700 transition hover:text-brand-700"
+                          >
+                            {isHistoryOpen ? (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            )}
+                            {stats.total} total · {stats.last30d} (30d)
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400">Sin registros</span>
+                        )}
+                      </td>
+
                       {/* Regenerar contraseña — solo para gestor pleno */}
                       {canManageUsers && (
                         <td className="px-5 py-3 text-right">
@@ -382,6 +421,21 @@ export function UsuariosView({ canManageUsers = false }: { canManageUsers?: bool
                         </td>
                       )}
                     </tr>
+                    {isHistoryOpen && stats && (
+                      <tr className="border-b border-gray-50 bg-gray-50/60 last:border-0">
+                        <td colSpan={canManageUsers ? 7 : 5} className="px-5 py-3">
+                          <p className="mb-1.5 text-xs font-medium text-gray-500">
+                            Últimos ingresos de {u.email} ({stats.last7d} en los últimos 7 días)
+                          </p>
+                          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                            {stats.history.map((iso) => (
+                              <li key={iso}>{fmtDateTime(iso)}</li>
+                            ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>

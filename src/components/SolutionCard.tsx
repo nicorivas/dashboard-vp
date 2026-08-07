@@ -64,7 +64,11 @@ export function SolutionCard({ s, showSocio = true }: { s: SolutionSummary; show
           {s.pymeMeta != null || s.pymeAcum != null ? (
             <p className="mt-0.5 flex items-baseline gap-1">
               <span className="text-xl font-semibold tabular-nums text-brand-700">
-                {s.pymeAcum != null ? formatNumber(s.pymeAcum) : "—"}
+                {s.pymeAcum != null && s.pymeAcum > 0
+                  ? formatNumber(s.pymeAcum)
+                  : s.pymeHasFormReport
+                    ? "0"
+                    : <span className="text-base font-normal italic text-gray-400">Sin reporte</span>}
               </span>
               <span className="text-sm text-gray-400">
                 / {s.pymeMeta != null ? formatNumber(s.pymeMeta) : "—"}

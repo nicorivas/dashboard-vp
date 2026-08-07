@@ -149,6 +149,7 @@ git push -u origin main
 - **Refrescar caché**: la API `/api/sheet?refresh=1` fuerza una lectura nueva (la caché es por instancia de Vercel, así que en producción el efecto puede ser parcial).
 - **Agregar un socio**: alta del usuario en Supabase + entrada en `DOMAIN_TO_PARTNER` (o `EMAIL_TO_PARTNER` si es excepción) + commit. El nombre debe coincidir con el del Sheet.
 - **Bypass temporal**: setear `BYPASS_AUTH=1` en Vercel para mostrar la vista ALL sin login — útil para demos. Quitar antes de exponerlo a socios.
+- **Historial de ingresos**: correr una vez `supabase/login_events.sql` en el SQL Editor de Supabase para crear la tabla. Desde ese momento, cada login queda registrado y visible en Usuarios → columna "Ingresos" (no hay forma de recuperar logins previos a la creación de la tabla).
 
 ## Próximos pasos sugeridos
 

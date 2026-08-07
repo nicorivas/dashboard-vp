@@ -15,6 +15,7 @@ export const PARTNERS = [
   { name: "FACEA UC", aliases: ["EAUC", "EAUC – PUC", "EAUC - PUC", "EAUC-PUC", "FACEA – UC", "FACEA-UC"] },
   { name: "Multigremial Nacional", aliases: ["MGN"] },
   { name: "Abastible", aliases: [] },
+  { name: "MisAbogados", aliases: ["Mis Abogados", "Mis abogados", "misabogados"] },
 ] as const;
 
 export function canonicalPartner(name: string): string | null {

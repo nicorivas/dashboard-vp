@@ -59,7 +59,11 @@ export function PartnerCard({ p }: { p: PartnerSummary }) {
         {p.pymeMeta != null || p.pymeAcum != null ? (
           <p className="mt-0.5 flex items-baseline gap-1">
             <span className="text-xl font-semibold tabular-nums text-brand-700">
-              {p.pymeAcum != null ? formatNumber(p.pymeAcum) : "—"}
+              {p.pymeAcum != null && p.pymeAcum > 0
+                ? formatNumber(p.pymeAcum)
+                : p.pymeHasFormReport
+                  ? "0"
+                  : <span className="text-base font-normal italic text-gray-400">Sin reporte</span>}
             </span>
             <span className="text-sm text-gray-400">
               / {p.pymeMeta != null ? formatNumber(p.pymeMeta) : "—"}

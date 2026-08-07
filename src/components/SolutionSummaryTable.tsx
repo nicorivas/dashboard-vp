@@ -217,7 +217,11 @@ export function SolutionSummaryTable({
                       <div>
                         <div className="flex items-baseline gap-1 text-xs tabular-nums">
                           <span className="font-semibold text-gray-900">
-                            {acum != null ? formatNumber(acum) : "—"}
+                            {acum != null && acum > 0
+                              ? formatNumber(acum)
+                              : s.pymeHasFormReport
+                                ? "0"
+                                : <span className="font-normal italic text-gray-400">Sin reporte</span>}
                           </span>
                           <span className="text-gray-400">
                             / {meta != null ? formatNumber(meta) : "—"}
