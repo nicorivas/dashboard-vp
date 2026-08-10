@@ -156,16 +156,4 @@ export type DashboardUser = {
   /** Override de socio almacenado en `app_metadata.partner_override`. Tiene
    *  precedencia sobre la detección por dominio. `null` si no hay override. */
   partnerOverride: string | null;
-  /** Historial de ingresos desde `login_events` (ver `supabase/login_events.sql`).
-   *  `null` si el usuario nunca inició sesión desde que existe el tracking. */
-  loginStats: LoginStats | null;
-};
-
-/** Estadísticas de ingresos de un usuario, calculadas desde `login_events`. */
-export type LoginStats = {
-  total: number;
-  last7d: number;
-  last30d: number;
-  /** Timestamps ISO de los últimos ingresos, más reciente primero (máx. 20). */
-  history: string[];
 };

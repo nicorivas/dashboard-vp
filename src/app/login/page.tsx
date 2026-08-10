@@ -22,8 +22,6 @@ export default function LoginPage() {
       setError(error.message);
       return;
     }
-    // Best-effort: no bloquea el login si falla.
-    fetch("/api/login-events", { method: "POST" }).catch(() => {});
     setLoading(false);
     router.push("/dashboard");
     router.refresh();
