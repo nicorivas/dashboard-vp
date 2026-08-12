@@ -1214,6 +1214,18 @@ export async function fetchMetricas(): Promise<MetricasData | null> {
 
     series2026.sort((a, b) => (parseDateCL(a.fecha)?.getTime() ?? 0) - (parseDateCL(b.fecha)?.getTime() ?? 0));
 
+    // El acumulado parte de 0 el 1 de enero — se agrega ese punto para que el
+    // gráfico arranque desde ahí en vez de saltar directo al primer valor real.
+    if (series2026.length > 0) {
+      series2026.unshift({
+        fecha: `1/1/${parseDateCL(series2026[0].fecha)?.getFullYear() ?? new Date().getFullYear()}`,
+        traficoAcum: 0,
+        alcanceAcum: 0,
+        traficoAcum2025: 0,
+        alcanceAcum2025: 0,
+      });
+    }
+
     if (!bestDate) return null;
 
     const daysToSunday = (7 - bestDate.getDay()) % 7;
