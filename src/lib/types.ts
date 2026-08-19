@@ -68,6 +68,10 @@ export type PymeKpis = {
   pymeAcumMonth: number;
   /** true si la solución aparece en alguna respuesta del formulario "Reportes por mes". */
   pymeHasFormReport: boolean;
+  /** Acumulado de PYMEs alcanzadas/contactadas (columna "alcanzadas" del
+   *  formulario mensual) — sólo viene del formulario, la pestaña KPIs no
+   *  tiene esta columna. `null` si nunca se reportó. */
+  pymeAlcanceAcum: number | null;
 };
 
 /** Entrada del log de status (hoja "Status" del Sheet principal). */
@@ -138,6 +142,86 @@ export type Tarea = {
   fin: string;
   comentarios: string;
 };
+
+/** Una etapa (columna del sheet) dentro de un funnel de convocatoria o
+ *  inscripción. `nota` es una definición/explicación opcional que se
+ *  muestra en el tooltip (ej. qué significa "Alcance"). */
+export type FunnelStage = {
+  label: string;
+  value: number;
+  nota?: string;
+};
+
+/** Funnel de la sección "Inscripción": alcance → adquisición de una
+ *  solución. Sin año ni canal — es un funnel único y continuo por solución. */
+export type InscripcionFunnel = {
+  id: string;
+  partner: string;
+  solucion: string;
+  etapas: FunnelStage[];
+};
+
+/** Una columna/métrica de una tabla de Convocatoria (ej. "Envío correo",
+ *  "Suscripciones*"). `isRate` = es una tasa (0..1), no una magnitud — se
+ *  muestra en la tabla pero no se usa como etapa del funnel. `nota` es la
+ *  definición a mostrar en tooltip (ej. el placeholder de Suscripciones*). */
+export type MetricColumn = {
+  label: string;
+  isRate?: boolean;
+  nota?: string;
+};
+
+/** Valor de una celda: la cifra + una tendencia opcional (AR/AB del sheet →
+ *  flecha verde arriba / roja abajo). */
+export type MetricCell = {
+  value: number;
+  trend?: "up" | "down";
+};
+
+/** Una fila de la tabla: un "tipo de fuente" (Correo, Tráfico orgánico,
+ *  Paid search...) con sus valores, alineados 1:1 con `TrafficGroup.columnas`.
+ *  `nota` es la definición a mostrar en tooltip (ej. qué es "Paid search"). */
+export type TrafficFuenteRow = {
+  fuente: string;
+  nota?: string;
+  valores: MetricCell[];
+};
+
+/** Un cuadro de la sección Convocatoria: una o más filas (tipos de fuente)
+ *  que comparten exactamente las mismas columnas — por eso van en una sola
+ *  tabla, con un funnel al lado construido sumando sus filas. */
+export type TrafficGroup = {
+  id: string;
+  /** Encabezado del cuadro y del funnel al lado, ej. "Correo", "Tráfico",
+   *  "Campaña adicional". */
+  titulo: string;
+  /** true = mostrar sólo el funnel, sin la tabla al lado (ej. "Acumulado
+   *  2026" de General: son cifras ya resumidas, la tabla no agrega nada). */
+  soloFunnel?: boolean;
+  columnas: MetricColumn[];
+  filas: TrafficFuenteRow[];
+};
+
+/** Todos los cuadros de Convocatoria de un socio/partner (o "General",
+ *  `solucion: null`) para un año determinado. */
+export type ConvocatoriaBlock = {
+  partner: string;
+  anio: number;
+  solucion: string | null;
+  grupos: TrafficGroup[];
+};
+
+/** Definiciones de tooltip reutilizadas tanto al armar los datos reales
+ *  (`sheets.ts`) como los funnels de Inscripción (`funnels.ts`) — viven
+ *  acá, neutrales, para que ninguno de los dos módulos dependa del otro. */
+export const ALCANCE_DEFINICION =
+  "Número de pymes que han sido alcanzadas, contactadas o que han manifestado interés en la solución durante el mes.";
+export const ADQUISICION_DEFINICION = "Número de pymes que han adquirido la solución a través de Valor Pyme.";
+export const SUSCRIPCIONES_DEFINICION = "Nuevos registros en Valor Pyme (no considera re-registros).";
+export const TRAFICO_ORGANICO_DEFINICION =
+  "Todas las fuentes que generan visitas en la cual no hay inversión publicitaria y comparten los mismos KPI.";
+export const PAID_SEARCH_DEFINICION = "Son las búsquedas pagadas.";
+export const PAID_SOCIAL_DEFINICION = "Son las interacciones en RRSS pagadas.";
 
 /** Usuario de Supabase Auth tal como lo expone `/api/users` a la sección de
  *  gestión de usuarios (sólo para el admin autorizado). */

@@ -10,7 +10,15 @@ import {
   type PymeKpis,
   type StatusEntry,
   type EvalSemana,
+  type ConvocatoriaBlock,
+  type TrafficGroup,
+  type MetricColumn,
+  type TrafficFuenteRow,
   ETAPAS,
+  SUSCRIPCIONES_DEFINICION,
+  TRAFICO_ORGANICO_DEFINICION,
+  PAID_SEARCH_DEFINICION,
+  PAID_SOCIAL_DEFINICION,
 } from "./types";
 import { canonicalPartner, canonicalSolutionName, findDetTab, findSolutionByTab, solutionSlug, slugify } from "./solutions";
 
@@ -24,6 +32,7 @@ const MASTER_TAB = "Lista correcta de nombres";
 const STATUS_TAB = "Status";
 const CACHE_TTL_MS = 30 * 1000;
 const MASTER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min — cambia poco
+const CONVOCATORIA_CACHE_TTL_MS = 60 * 1000;
 
 type AggregateData = {
   weeks: string[];
@@ -46,6 +55,7 @@ export type MasterRow = {
 
 let aggregateCache: { data: AggregateData; expiresAt: number } | null = null;
 let masterCache: { data: MasterRow[]; expiresAt: number } | null = null;
+let convocatoriaCache: { data: ConvocatoriaBlock[]; expiresAt: number } | null = null;
 const detailCache = new Map<string, { data: SolutionDetail; expiresAt: number }>();
 
 function getAuth() {
@@ -68,6 +78,14 @@ function sheetsClient() {
 function getSheetId() {
   const id = process.env.SHEET_ID;
   if (!id) throw new Error("Falta SHEET_ID.");
+  return id;
+}
+
+/** Sheet "Funnel_Convocatoria_Partners" — una pestaña por socio/partner
+ *  (más "General"), leído en vivo para la sección Convocatoria de Funnels. */
+function getConvocatoriaSheetId() {
+  const id = process.env.CONVOCATORIA_SHEET_ID;
+  if (!id) throw new Error("Falta CONVOCATORIA_SHEET_ID.");
   return id;
 }
 
@@ -407,6 +425,7 @@ export async function fetchAggregate(force = false): Promise<AggregateData> {
         pymeAcum: tabKpi.kpis.pymeAcum,
         pymeAcumMonth: tabKpi.kpis.pymeAcumMonth,
         pymeHasFormReport: tabKpi.kpis.pymeHasFormReport,
+        pymeAlcanceAcum: tabKpi.kpis.pymeAlcanceAcum,
       };
     })
     .filter((s) => {
@@ -557,6 +576,7 @@ function parseKpiSheet(values: any[][], mode: "socio" | "partner"): Map<string, 
       pymeAcum: acum,
       pymeAcumMonth: acumMonth,
       pymeHasFormReport: false,
+      pymeAlcanceAcum: null,
     };
 
     out.set(slug, { entity, solucion: canonicalSolucion, slug, kpis });
@@ -575,10 +595,13 @@ function parseKpiSheet(values: any[][], mode: "socio" | "partner"): Map<string, 
  *   - Adquirieron (columna explícita) → adquisición primaria
  *   - Nuevos registros → adquisición fallback
  *
- * @returns Map slug → array[12] con adquisición por mes (null = sin dato)
+ * @returns Map slug → { adquisicion, alcance }, cada uno array[12] por mes
+ *          (null = sin dato)
  */
-function parseReporteSheet(values: any[][], mode: "socio" | "partner"): Map<string, (number | null)[]> {
-  const out = new Map<string, (number | null)[]>();
+type ReporteMonthly = { adquisicion: (number | null)[]; alcance: (number | null)[] };
+
+function parseReporteSheet(values: any[][], mode: "socio" | "partner"): Map<string, ReporteMonthly> {
+  const out = new Map<string, ReporteMonthly>();
   if (!values.length) return out;
 
   let headerIdx = -1;
@@ -641,6 +664,7 @@ function parseReporteSheet(values: any[][], mode: "socio" | "partner"): Map<stri
       if (colAdq >= 0) val = parseNumberOrNull(row[colAdq]);
       if (val == null && colNuevos >= 0) val = parseNumberOrNull(row[colNuevos]);
     }
+    const alcanceVal = colAlcanzadas >= 0 ? parseNumberOrNull(row[colAlcanzadas]) : null;
 
     const entity = mode === "socio" ? (canonicalPartner(entityRaw) ?? entityRaw) : entityRaw;
     const canonicalSol = canonicalSolutionName(solucionRaw);
@@ -648,9 +672,11 @@ function parseReporteSheet(values: any[][], mode: "socio" | "partner"): Map<stri
       ? solutionSlug(entity, canonicalSol)
       : slugify(`partner-${entity}-${canonicalSol}`);
 
-    if (!out.has(slug)) out.set(slug, Array(12).fill(null));
+    if (!out.has(slug)) out.set(slug, { adquisicion: Array(12).fill(null), alcance: Array(12).fill(null) });
     // La última fila para el mismo mes toma precedencia (orden cronológico en el form)
-    if (val != null) out.get(slug)![mesIdx] = val;
+    const entry = out.get(slug)!;
+    if (val != null) entry.adquisicion[mesIdx] = val;
+    if (alcanceVal != null) entry.alcance[mesIdx] = alcanceVal;
   }
 
   return out;
@@ -660,14 +686,14 @@ function parseReporteSheet(values: any[][], mode: "socio" | "partner"): Map<stri
  * Aplica datos del formulario de reporte sobre el mapa de KPIs.
  * Para cada mes con dato reportado, el formulario toma precedencia sobre el tab KPIs.
  */
-function mergeReporteIntoKpis(kpiMap: Map<string, KpiRow>, reporteMap: Map<string, (number | null)[]>): void {
-  for (const [slug, reporteMonthly] of reporteMap) {
+function mergeReporteIntoKpis(kpiMap: Map<string, KpiRow>, reporteMap: Map<string, ReporteMonthly>): void {
+  for (const [slug, reporte] of reporteMap) {
     const kpi = kpiMap.get(slug);
     if (!kpi) continue;
     kpi.kpis.pymeHasFormReport = true;
 
     const merged = kpi.kpis.pymeMonthly.map((existing, i) =>
-      reporteMonthly[i] != null ? reporteMonthly[i] : existing
+      reporte.adquisicion[i] != null ? reporte.adquisicion[i] : existing
     );
 
     let acum: number | null = null;
@@ -678,6 +704,14 @@ function mergeReporteIntoKpis(kpiMap: Map<string, KpiRow>, reporteMap: Map<strin
         acumMonth = m;
       }
     }
+
+    // Alcance sólo viene del formulario (la pestaña KPIs no tiene esta
+    // columna) — no hay nada que mergear, sólo acumular lo reportado.
+    let alcanceAcum: number | null = null;
+    for (let m = 0; m < 12; m++) {
+      if (reporte.alcance[m] != null) alcanceAcum = (alcanceAcum ?? 0) + (reporte.alcance[m] as number);
+    }
+    kpi.kpis.pymeAlcanceAcum = alcanceAcum;
 
     kpi.kpis.pymeMonthly = merged;
     kpi.kpis.pymeAcum = acum;
@@ -910,6 +944,7 @@ function parseConsolidado(values: any[][], kpisBySlug: Map<string, KpiRow>): Sol
       pymeAcum: kpi?.kpis.pymeAcum ?? null,
       pymeAcumMonth: kpi?.kpis.pymeAcumMonth ?? -1,
       pymeHasFormReport: kpi?.kpis.pymeHasFormReport ?? false,
+      pymeAlcanceAcum: kpi?.kpis.pymeAlcanceAcum ?? null,
     });
   }
   return out;
@@ -1347,4 +1382,190 @@ export async function fetchEvaluaciones(force = false): Promise<EvalSemana[]> {
 
   evalCache = { data: result, expiresAt: now + EVAL_CACHE_TTL_MS };
   return result;
+}
+
+/**
+ * Sección Convocatoria de Funnels — lee el sheet "Funnel_Convocatoria_Partners"
+ * en vivo. Cada socio/partner (más "General") tiene su propia pestaña, con la
+ * misma plantilla: título de la pestaña, texto de instrucciones, y uno o más
+ * bloques "<año> - <tipo de fuente>" con encabezado (fila título, celda
+ * combinada A:E), columnas, cifras, y opcionalmente una fila de flechas
+ * AR/AB debajo. Este registro sólo mapea pestaña → socio/solución/año — la
+ * plantilla del sheet (columnas, cifras, flechas) se parsea genéricamente,
+ * así que agregar filas/columnas nuevas en el sheet se refleja solo, sin
+ * tocar código. Agregar una pestaña nueva (un socio nuevo) sí requiere una
+ * línea más acá.
+ */
+const CONVOCATORIA_TABS: {
+  tab: string;
+  partner: string;
+  solucion: string | null;
+  anio: number;
+  /** Nombre del bloque en el sheet (sin el prefijo "<año> - ") → título a
+   *  mostrar, cuando difiere (ej. el nombre de campaña de OTIC). */
+  tituloOverrides?: Record<string, string>;
+}[] = [
+  { tab: "General", partner: "General", solucion: null, anio: 2026 },
+  { tab: "Defontana Contabilidad Gratuita", partner: "Defontana", solucion: "Contabilidad Gratuita / ERP", anio: 2026 },
+  { tab: "Defontana Digital", partner: "Defontana", solucion: "Defontana Digital", anio: 2026 },
+  {
+    tab: "OTIC/Bci Educación Financiera",
+    partner: "OTIC CChC",
+    solucion: "Programa de Educación Financiera y Gestión para Pymes",
+    anio: 2026,
+    tituloOverrides: {
+      "Convocatoria Programa Educación Financiera": 'Campaña "Programa Educación y Gestión Financiera"',
+    },
+  },
+  { tab: "Fintegram", partner: "Fintegram", solucion: "Fintegram", anio: 2026 },
+  { tab: "FACEA UC", partner: "FACEA UC", solucion: "Pyme UC", anio: 2026 },
+];
+
+/** Definición de tooltip por nombre de fila (tipo de fuente) o de columna,
+ *  para reponerla — el sheet en sí no trae definiciones, sólo números. */
+const CONVOCATORIA_FUENTE_NOTAS: Record<string, string> = {
+  "tráfico orgánico": TRAFICO_ORGANICO_DEFINICION,
+  "paid search": PAID_SEARCH_DEFINICION,
+  "paid social media": PAID_SOCIAL_DEFINICION,
+};
+const CONVOCATORIA_COLUMNA_NOTAS: Record<string, string> = {
+  "suscripciones*": SUSCRIPCIONES_DEFINICION,
+};
+
+type RawConvocatoriaSubBlock = {
+  nombre: string;
+  headers: string[];
+  valores: (number | null)[];
+  trends: ("up" | "down" | undefined)[];
+};
+
+/**
+ * Un bloque empieza en cualquier fila con una celda combinada A:E de una
+ * sola fila de alto — eso es lo único que distingue "esto es un título" de
+ * una fila de datos, sin depender de contar filas en blanco. Las primeras
+ * dos (nombre de la pestaña + texto de instrucciones) no son bloques.
+ */
+function parseConvocatoriaTab(
+  values: any[][],
+  merges: { startRowIndex: number; endRowIndex: number; startColumnIndex: number }[]
+): RawConvocatoriaSubBlock[] {
+  const titleRows = merges
+    .filter((m) => m.endRowIndex - m.startRowIndex === 1 && m.startColumnIndex === 0)
+    .map((m) => m.startRowIndex)
+    .sort((a, b) => a - b);
+  const subBlockRows = titleRows.slice(2);
+
+  const out: RawConvocatoriaSubBlock[] = [];
+  for (const r of subBlockRows) {
+    const headerRow: any[] = values[r + 1] || [];
+    const headers = headerRow.map((c) => s(c)).filter((h) => h !== "");
+    if (headers.length === 0) continue;
+
+    const dataRow: any[] = values[r + 2] || [];
+    const valores = headers.map((_, i) => (typeof dataRow[i] === "number" ? dataRow[i] : null));
+    if (valores.every((v) => v == null)) continue; // sin datos reportados todavía
+
+    const trendRow: any[] = values[r + 3] || [];
+    const trends = headers.map((_, i): "up" | "down" | undefined => {
+      const t = s(trendRow[i]).toUpperCase();
+      return t === "AR" ? "up" : t === "AB" ? "down" : undefined;
+    });
+
+    const nombre = s(values[r]?.[0]).replace(/^\d{4}\s*-\s*/, "").trim();
+    out.push({ nombre, headers, valores, trends });
+  }
+  return out;
+}
+
+/** Agrupa sub-bloques que comparten exactamente las mismas columnas en una
+ *  sola tabla (varias filas) — es la regla "tipos de fuente que comparten
+ *  KPI van juntos" aplicada en código en vez de a mano. Si una columna
+ *  reporta valores entre 0 y 1 es una tasa (CTR, tasa de apertura...): no
+ *  importa cómo la haya llamado Camila en el sheet, se detecta por el
+ *  valor, no por el nombre — así no hay que mantener una lista de nombres
+ *  de columnas "que son tasa". */
+function groupConvocatoriaSubBlocks(
+  tabSlug: string,
+  subBlocks: RawConvocatoriaSubBlock[],
+  tituloOverrides?: Record<string, string>
+): TrafficGroup[] {
+  const clusters: { headers: string[]; blocks: RawConvocatoriaSubBlock[] }[] = [];
+  for (const b of subBlocks) {
+    const cluster = clusters.find(
+      (c) => c.headers.length === b.headers.length && c.headers.every((h, i) => h === b.headers[i])
+    );
+    if (cluster) cluster.blocks.push(b);
+    else clusters.push({ headers: b.headers, blocks: [b] });
+  }
+
+  return clusters.map((cluster, ci): TrafficGroup => {
+    const first = cluster.blocks[0];
+    const columnas: MetricColumn[] = cluster.headers.map((label, i) => {
+      const v = first.valores[i];
+      const isRate = typeof v === "number" && v > 0 && v < 1;
+      return { label, isRate: isRate || undefined, nota: CONVOCATORIA_COLUMNA_NOTAS[label.toLowerCase().trim()] };
+    });
+    const filas: TrafficFuenteRow[] = cluster.blocks.map((b) => ({
+      fuente: b.nombre,
+      nota: CONVOCATORIA_FUENTE_NOTAS[b.nombre.toLowerCase().trim()],
+      valores: b.headers.map((_, i) => ({ value: b.valores[i] ?? 0, trend: b.trends[i] })),
+    }));
+    const titulo = tituloOverrides?.[first.nombre] ?? (cluster.blocks.length > 1 ? "Tráfico" : first.nombre);
+    return { id: slugify(`${tabSlug}-grupo-${ci}`), titulo, columnas, filas };
+  });
+}
+
+/**
+ * Lee en vivo el sheet "Funnel_Convocatoria_Partners" (una pestaña por
+ * socio/partner + "General") y lo convierte en `ConvocatoriaBlock[]`. Si el
+ * sheet no está disponible (falta compartirlo con la cuenta de servicio,
+ * error de red, etc.) devuelve `[]` — la sección Convocatoria simplemente
+ * no aparece, no rompe la página.
+ */
+export async function fetchConvocatoriaBlocks(force = false): Promise<ConvocatoriaBlock[]> {
+  const now = Date.now();
+  if (!force && convocatoriaCache && now < convocatoriaCache.expiresAt) return convocatoriaCache.data;
+
+  try {
+    const spreadsheetId = getConvocatoriaSheetId();
+    const client = sheetsClient();
+    const meta = await client.spreadsheets.get({ spreadsheetId });
+    const sheetsMeta = meta.data.sheets ?? [];
+
+    const registryByTab = new Map(CONVOCATORIA_TABS.map((r) => [r.tab, r]));
+    const knownTabs = sheetsMeta
+      .map((sh) => sh.properties?.title)
+      .filter((t): t is string => !!t && registryByTab.has(t));
+
+    const blocks: ConvocatoriaBlock[] = [];
+    if (knownTabs.length > 0) {
+      const ranges = knownTabs.map((t) => `'${t}'!A1:Z200`);
+      const valuesRes = await client.spreadsheets.values.batchGet({
+        spreadsheetId,
+        ranges,
+        valueRenderOption: "UNFORMATTED_VALUE",
+      });
+
+      knownTabs.forEach((tabTitle, i) => {
+        const registry = registryByTab.get(tabTitle)!;
+        const sheetMeta = sheetsMeta.find((sh) => sh.properties?.title === tabTitle);
+        const merges = (sheetMeta?.merges ?? []).map((m) => ({
+          startRowIndex: m.startRowIndex ?? 0,
+          endRowIndex: m.endRowIndex ?? 0,
+          startColumnIndex: m.startColumnIndex ?? 0,
+        }));
+        const values = valuesRes.data.valueRanges?.[i]?.values ?? [];
+        const subBlocks = parseConvocatoriaTab(values, merges);
+        if (subBlocks.length === 0) return;
+        const grupos = groupConvocatoriaSubBlocks(slugify(tabTitle), subBlocks, registry.tituloOverrides);
+        blocks.push({ partner: registry.partner, anio: registry.anio, solucion: registry.solucion, grupos });
+      });
+    }
+
+    convocatoriaCache = { data: blocks, expiresAt: now + CONVOCATORIA_CACHE_TTL_MS };
+    return blocks;
+  } catch (err) {
+    console.warn("[fetchConvocatoriaBlocks] No se pudo leer el sheet de Convocatoria.", err);
+    return [];
+  }
 }

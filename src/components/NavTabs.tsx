@@ -14,19 +14,29 @@ const USERS_TAB: { href: string; label: string; matchExact?: boolean } = {
   label: "Usuarios",
 };
 
+const FUNNELS_TAB: { href: string; label: string; matchExact?: boolean } = {
+  href: "/dashboard/funnels",
+  label: "Funnels",
+};
+
 export function NavTabs({
   visible = true,
   canManageUsers = false,
   canEditPartnerRole = false,
+  canViewFunnels = false,
 }: {
   visible?: boolean;
   /** Muestra la pestaña "Usuarios" — para la allowlist de gestión o cualquier FE. */
   canManageUsers?: boolean;
   canEditPartnerRole?: boolean;
+  /** Muestra la pestaña "Funnels" — allowlist puntual, no todo admin. */
+  canViewFunnels?: boolean;
 }) {
   const pathname = usePathname();
   if (!visible) return null;
-  const tabs = canManageUsers || canEditPartnerRole ? [...TABS, USERS_TAB] : TABS;
+  let tabs = TABS;
+  if (canViewFunnels) tabs = [...tabs, FUNNELS_TAB];
+  if (canManageUsers || canEditPartnerRole) tabs = [...tabs, USERS_TAB];
   return (
     <nav className="flex items-center gap-1 border-b border-gray-200">
       {tabs.map((t) => {

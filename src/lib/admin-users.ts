@@ -37,6 +37,23 @@ export function canEditPartnerRole(email: string | null | undefined): boolean {
 }
 
 /**
+ * Allowlist explícita de quién puede ver la pestaña "Funnels" (funnels de
+ * convocatoria e inscripción por socio/partner). No alcanza con ser admin:
+ * el resto de @bci.cl no debe verla, sólo estas dos personas puntuales.
+ */
+export const FUNNELS_VIEWER_EMAILS = new Set<string>([
+  "sebastian.castro@bci.cl",
+  "paola.alvano@bci.cl",
+]);
+
+export function canViewFunnels(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  const domain = normalized.split("@")[1] ?? "";
+  return domain === "feconsulting.cl" || FUNNELS_VIEWER_EMAILS.has(normalized);
+}
+
+/**
  * Email del usuario de la request actual. Respeta `BYPASS_AUTH` igual que el
  * resto del dashboard, para que la sección sea testeable en modo demo.
  */
