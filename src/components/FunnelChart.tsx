@@ -29,13 +29,17 @@ function barColor(index: number, total: number, theme: "brand" | "orange"): stri
 
 /** Ancho proporcional a la magnitud real, comprimido con raíz cuadrada para
  *  que la cola de etapas chicas siga siendo visible (una escala lineal las
- *  deja en ~0%). El piso lo pone `min-w-[Npx]` en el botón, no un porcentaje
- *  fijo — así sólo se activa para la cola realmente diminuta y no aplana
- *  etapas intermedias con magnitudes distintas entre sí. */
+ *  deja en ~0%). El texto va arriba de la barra, no adentro — así la barra
+ *  puede angostarse hasta un piso mínimo (`BAR_MIN_WIDTH_PX`) sin perder
+ *  legibilidad, y funnels con muchas etapas chicas parecidas entre sí (ej.
+ *  la campaña de OTIC) se ven proporcionales de verdad en vez de aplanadas
+ *  todas al mismo ancho. */
 function widthPct(value: number, first: number): number {
   if (first <= 0 || value <= 0) return 0;
   return Math.min(100, Math.sqrt(value / first) * 100);
 }
+
+const BAR_MIN_WIDTH_PX = 10;
 
 export function FunnelChart({
   funnel,
@@ -75,16 +79,20 @@ export function FunnelChart({
               onFocus={() => setActiveIndex(i)}
               onBlur={() => setActiveIndex(null)}
             >
-              <div className="flex justify-center">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="truncate text-xs font-medium text-gray-700">{etapa.label}</span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-gray-900">
+                  {formatNumber(etapa.value)}
+                </span>
+              </div>
+              <div className="mt-1 flex justify-center">
                 <button
                   type="button"
                   tabIndex={0}
-                  className={`flex min-w-[110px] items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-white transition ${barColor(i, etapas.length, theme)} ${isActive ? `ring-2 ring-offset-2 ${ringColor}` : ""}`}
-                  style={{ width: `${width}%` }}
-                >
-                  <span className="truncate text-xs font-medium">{etapa.label}</span>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums">{formatNumber(etapa.value)}</span>
-                </button>
+                  aria-label={`${etapa.label}: ${formatNumber(etapa.value)}`}
+                  className={`h-3 rounded-full transition ${barColor(i, etapas.length, theme)} ${isActive ? `ring-2 ring-offset-2 ${ringColor}` : ""}`}
+                  style={{ width: `${width}%`, minWidth: `${BAR_MIN_WIDTH_PX}px` }}
+                />
               </div>
 
               <p className="mt-1 text-center text-[11px] text-gray-500">
