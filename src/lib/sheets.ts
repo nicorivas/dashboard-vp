@@ -1074,6 +1074,14 @@ export type MetricasSemana2026 = {
   alcanceAcum: number | null;
   traficoAcum2025: number | null;
   alcanceAcum2025: number | null;
+  // Acumulados incluyendo enrolamiento (ex "con importaciones") — mismo alcance
+  // pero sumando también los enrolamientos masivos, que "inflan" el orgánico.
+  alcanceAcumEnrolamiento: number | null;
+  alcanceAcumEnrolamiento2025: number | null;
+  // true si en esa semana puntual el valor con enrolamiento superó al valor sin
+  // enrolamiento — es decir, esa semana incluyó una inyección de enrolamiento.
+  inyeccionEnrolamiento2026: boolean;
+  inyeccionEnrolamiento2025: boolean;
 };
 
 export type MetricasData = {
@@ -1138,7 +1146,7 @@ export async function fetchMetricas(): Promise<MetricasData | null> {
     const sheets = sheetsClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: getSheetId(),
-      range: "Metricas!A1:J200",
+      range: "Metricas!A1:N260",
       valueRenderOption: "UNFORMATTED_VALUE",
       dateTimeRenderOption: "FORMATTED_STRING",
     });
@@ -1169,18 +1177,24 @@ export async function fetchMetricas(): Promise<MetricasData | null> {
     const colTraficoAcum = header.findIndex((h: string) =>
       h.includes("tr") && h.includes("acum")
     );
-    // Alcance semanal: tiene "alcance" pero NO "acum" y NO "2025"
-    const colAlcance = header.findIndex((h: string) =>
-      h.includes("alcance") && !h.includes("acum") && !h.includes("2025")
-    );
-    // Alcance 2025: tiene "alcance" y "2025"
-    const colAlcance2025 = header.findIndex((h: string) =>
-      h.includes("alcance") && h.includes("2025")
-    );
-    // Alcance acumulado: tiene "alcance" y "acum"
-    const colAlcanceAcum = header.findIndex((h: string) =>
-      h.includes("alcance") && h.includes("acum")
-    );
+    // "CON IMP" = con importaciones/enrolamiento masivo — se distingue aparte
+    // de las columnas base ("sin imp") para poder detectar semana a semana en
+    // qué periodos hubo una inyección de enrolamiento (ver `inyeccionEnrolamiento*`).
+    const alcanceCols = (opts: { acum: boolean; anio2025: boolean; conImp: boolean }) =>
+      header.findIndex((h: string) =>
+        h.includes("alcance") &&
+        h.includes("acum") === opts.acum &&
+        h.includes("2025") === opts.anio2025 &&
+        h.includes("con imp") === opts.conImp
+      );
+    const colAlcance             = alcanceCols({ acum: false, anio2025: false, conImp: false });
+    const colAlcance2025         = alcanceCols({ acum: false, anio2025: true,  conImp: false });
+    const colAlcanceAcum         = alcanceCols({ acum: true,  anio2025: false, conImp: false });
+    const colAlcanceAcum2025     = alcanceCols({ acum: true,  anio2025: true,  conImp: false });
+    const colAlcanceEnrol        = alcanceCols({ acum: false, anio2025: false, conImp: true });
+    const colAlcanceEnrol2025    = alcanceCols({ acum: false, anio2025: true,  conImp: true });
+    const colAlcanceAcumEnrol    = alcanceCols({ acum: true,  anio2025: false, conImp: true });
+    const colAlcanceAcumEnrol2025 = alcanceCols({ acum: true, anio2025: true,  conImp: true });
     // Adquisición y Adopción opcionales
     const colAdquisicion = header.findIndex((h: string) => h.includes("adquisic"));
     const colAdopcion    = header.findIndex((h: string) => h.includes("adopc"));
@@ -1195,15 +1209,18 @@ export async function fetchMetricas(): Promise<MetricasData | null> {
     let bestAlcance: number | null = null;
     let bestAlcance2025: number | null = null;
     let bestAlcanceAcum: number | null = null;
+    let bestAlcanceAcum2025: number | null = null;
+    let bestAlcanceAcumEnrol: number | null = null;
+    let bestAlcanceAcumEnrol2025: number | null = null;
     let bestAdquisicion: number | null = null;
     let bestAdopcion: number | null = null;
-    // Tráfico/Alcance 2025 en el sheet son valores por período (no acumulados);
-    // se acumulan aquí mismo, sumando en el mismo orden cronológico, para poder
-    // graficarlos como línea de comparación "fantasma" junto al acumulado 2026.
+    // Tráfico 2025 en el sheet es un valor por período (no acumulado); se
+    // acumula aquí mismo, sumando en el mismo orden cronológico, para poder
+    // graficarlo como línea de comparación "fantasma" junto al acumulado 2026.
+    // (Alcance 2025 ya viene acumulado directo desde el sheet — colAlcanceAcum2025 —
+    // así que no necesita la misma suma manual.)
     let traficoAcum2025Running = 0;
-    let alcanceAcum2025Running = 0;
     let hasTrafico2025 = false;
-    let hasAlcance2025 = false;
     const series2026: MetricasSemana2026[] = [];
 
     for (let i = headerIdx + 1; i < values.length; i++) {
@@ -1221,6 +1238,11 @@ export async function fetchMetricas(): Promise<MetricasData | null> {
       const alc  = colAlcance     >= 0 ? parseNumberOrNull(row[colAlcance])     : null;
       const a25  = colAlcance2025 >= 0 ? parseNumberOrNull(row[colAlcance2025]) : null;
       const aAcm = colAlcanceAcum >= 0 ? parseNumberOrNull(row[colAlcanceAcum]) : null;
+      const aAcm25 = colAlcanceAcum2025     >= 0 ? parseNumberOrNull(row[colAlcanceAcum2025])     : null;
+      const alcEnrol   = colAlcanceEnrol        >= 0 ? parseNumberOrNull(row[colAlcanceEnrol])        : null;
+      const alcEnrol25 = colAlcanceEnrol2025    >= 0 ? parseNumberOrNull(row[colAlcanceEnrol2025])    : null;
+      const aAcmEnrol   = colAlcanceAcumEnrol     >= 0 ? parseNumberOrNull(row[colAlcanceAcumEnrol])     : null;
+      const aAcmEnrol25 = colAlcanceAcumEnrol2025 >= 0 ? parseNumberOrNull(row[colAlcanceAcumEnrol2025]) : null;
       const adq  = colAdquisicion >= 0 ? parseNumberOrNull(row[colAdquisicion]) : null;
       const adop = colAdopcion    >= 0 ? parseNumberOrNull(row[colAdopcion])    : null;
 
@@ -1230,19 +1252,29 @@ export async function fetchMetricas(): Promise<MetricasData | null> {
       if (alc  != null) bestAlcance      = alc;
       if (a25  != null) bestAlcance2025  = a25;
       if (aAcm != null) bestAlcanceAcum  = aAcm;
+      if (aAcm25       != null) bestAlcanceAcum2025       = aAcm25;
+      if (aAcmEnrol     != null) bestAlcanceAcumEnrol      = aAcmEnrol;
+      if (aAcmEnrol25   != null) bestAlcanceAcumEnrol2025  = aAcmEnrol25;
       if (adq  != null) bestAdquisicion  = adq;
       if (adop != null) bestAdopcion     = adop;
 
       if (t25 != null) { traficoAcum2025Running += t25; hasTrafico2025 = true; }
-      if (a25 != null) { alcanceAcum2025Running += a25; hasAlcance2025 = true; }
 
       if (d.getFullYear() === 2026) {
+        // Inyección de enrolamiento = esa semana el valor "con imp" superó al
+        // valor base — si sólo hay dato "con imp" (sin base), también cuenta.
+        const inyeccion2026 = alcEnrol != null && (alc == null || alcEnrol > alc);
+        const inyeccion2025 = alcEnrol25 != null && (a25 == null || alcEnrol25 > a25);
         series2026.push({
           fecha: fechaNorm,
           traficoAcum: bestTraficoAcum != null ? Math.round(bestTraficoAcum) : null,
           alcanceAcum: bestAlcanceAcum != null ? Math.round(bestAlcanceAcum) : null,
           traficoAcum2025: hasTrafico2025 ? Math.round(traficoAcum2025Running) : null,
-          alcanceAcum2025: hasAlcance2025 ? Math.round(alcanceAcum2025Running) : null,
+          alcanceAcum2025: bestAlcanceAcum2025 != null ? Math.round(bestAlcanceAcum2025) : null,
+          alcanceAcumEnrolamiento: bestAlcanceAcumEnrol != null ? Math.round(bestAlcanceAcumEnrol) : null,
+          alcanceAcumEnrolamiento2025: bestAlcanceAcumEnrol2025 != null ? Math.round(bestAlcanceAcumEnrol2025) : null,
+          inyeccionEnrolamiento2026: inyeccion2026,
+          inyeccionEnrolamiento2025: inyeccion2025,
         });
       }
     }
@@ -1251,13 +1283,21 @@ export async function fetchMetricas(): Promise<MetricasData | null> {
 
     // El acumulado parte de 0 el 1 de enero — se agrega ese punto para que el
     // gráfico arranque desde ahí en vez de saltar directo al primer valor real.
-    if (series2026.length > 0) {
+    // Si la primera semana reportada ya es el 1/1 (el sheet ahora trae datos
+    // desde el inicio del año), no hay que agregar un punto duplicado.
+    const firstDate = series2026.length > 0 ? parseDateCL(series2026[0].fecha) : null;
+    const isAlreadyJan1 = firstDate != null && firstDate.getMonth() === 0 && firstDate.getDate() === 1;
+    if (series2026.length > 0 && !isAlreadyJan1) {
       series2026.unshift({
-        fecha: `1/1/${parseDateCL(series2026[0].fecha)?.getFullYear() ?? new Date().getFullYear()}`,
+        fecha: `1/1/${firstDate?.getFullYear() ?? new Date().getFullYear()}`,
         traficoAcum: 0,
         alcanceAcum: 0,
         traficoAcum2025: 0,
         alcanceAcum2025: 0,
+        alcanceAcumEnrolamiento: 0,
+        alcanceAcumEnrolamiento2025: 0,
+        inyeccionEnrolamiento2026: false,
+        inyeccionEnrolamiento2025: false,
       });
     }
 
