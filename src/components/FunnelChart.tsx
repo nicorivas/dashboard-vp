@@ -20,6 +20,44 @@ function formatPercent(x: number): string {
   return new Intl.NumberFormat("es-CL", { style: "percent", maximumFractionDigits: 1 }).format(x);
 }
 
+/** Frase de referencia a una etapa ("del tráfico", "de los clics"...) para
+ *  el pie de cada barra — en vez del genérico "vs etapa anterior", nombra la
+ *  etapa real con la preposición/artículo correcto. Cubre las etiquetas que
+ *  usan hoy los sheets de Convocatoria (ver tabs en Funnel_Convocatoria_Partners)
+ *  más las de Inscripción/Acumulado 2026; una etiqueta nueva que no esté
+ *  mapeada cae al heurístico genérico de abajo. */
+const ETAPA_REFERENCIA: Record<string, string> = {
+  "tráfico": "del tráfico",
+  "alcance": "del alcance",
+  "adquisición": "de la adquisición",
+  "envío correo": "de los envíos de correo",
+  "apertura de correo": "de las aperturas de correo",
+  "clic": "de los clics",
+  "envío de formulario": "de los envíos de formulario",
+  "registro academia": "de los registros en la academia",
+  "postulación a convocatoria": "de las postulaciones a la convocatoria",
+  "registro en fintegram": "de los registros en Fintegram",
+  "visualizaciones de página": "de las visualizaciones de página",
+  "visualizaciones de páginas": "de las visualizaciones de página",
+  "suscripciones": "de las suscripciones",
+  "suscripciones*": "de las suscripciones",
+  "alcance de la solución": "del alcance de la solución",
+  "adquisición de la solución": "de la adquisición de la solución",
+};
+
+function etapaReferencia(label: string): string {
+  const key = label.trim().toLowerCase();
+  if (ETAPA_REFERENCIA[key]) return ETAPA_REFERENCIA[key];
+  // Heurística genérica para una etiqueta nueva que aún no esté mapeada
+  // arriba: plural si termina en "s", género por la terminación típica del
+  // español (fem: -a/-ión/-dad/-tud/-umbre; el resto, masc).
+  const isPlural = /s$/.test(key);
+  const firstWord = key.split(" ")[0].replace(/s$/, "");
+  const isFeminine = /(a|ión|dad|tud|umbre)$/.test(firstWord);
+  if (isPlural) return isFeminine ? `de las ${key}` : `de los ${key}`;
+  return isFeminine ? `de la ${key}` : `del ${key}`;
+}
+
 function barColor(index: number, total: number, theme: "brand" | "orange"): string {
   const colors = THEME_COLORS[theme];
   if (total <= 1) return colors[0];
@@ -60,7 +98,7 @@ export function FunnelChart({
           {funnel.canal && (
             <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{funnel.canal}</p>
           )}
-          <h4 className="mt-0.5 text-sm font-semibold text-gray-900">{funnel.solucion}</h4>
+          <h4 className="mt-0.5 text-sm font-semibold text-gray-900">Funnel {funnel.solucion}</h4>
         </div>
       </div>
 
@@ -96,7 +134,7 @@ export function FunnelChart({
               </div>
 
               <p className="mt-1 text-center text-[11px] text-gray-500">
-                {i === 0 ? <>100% del funnel</> : <>{formatPercent(vsPrevious)} vs etapa anterior</>}
+                {i === 0 ? <>100% del funnel</> : <>{formatPercent(vsPrevious)} {etapaReferencia(etapas[i - 1].label)}</>}
               </p>
 
               {isActive && (
@@ -108,7 +146,7 @@ export function FunnelChart({
                       <dd className="font-medium tabular-nums text-gray-900">{formatNumber(etapa.value)}</dd>
                     </div>
                     <div className="flex items-center justify-between">
-                      <dt className="text-gray-500">vs. etapa anterior</dt>
+                      <dt className="text-gray-500">{i === 0 ? "vs. etapa anterior" : etapaReferencia(etapas[i - 1].label)}</dt>
                       <dd className="font-medium tabular-nums text-gray-900">
                         {i === 0 ? "—" : formatPercent(vsPrevious)}
                       </dd>
