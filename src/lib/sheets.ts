@@ -1444,10 +1444,19 @@ const CONVOCATORIA_TABS: {
   /** Nombre del bloque en el sheet (sin el prefijo "<año> - ") → título a
    *  mostrar, cuando difiere (ej. el nombre de campaña de OTIC). */
   tituloOverrides?: Record<string, string>;
+  /** Cuando una pestaña se comparte entre varias soluciones de un mismo
+   *  partner (ej. "BCI" trae tanto Cuenta Digital como Banca Nace), cada
+   *  bloque del sheet que sea específico de una lleva el sufijo "<nombre>:
+   *  <Solución>" — este filtro se queda sólo con los de ESTA solución (el
+   *  sufijo se saca del nombre mostrado). Un bloque sin ese sufijo es
+   *  compartido y se incluye igual en todas las soluciones de la pestaña. */
+  soloBloquesDe?: string;
 }[] = [
   { tab: "General", partner: "General", solucion: null, anio: 2026 },
   { tab: "Defontana Contabilidad Gratuita", partner: "Defontana", solucion: "Contabilidad Gratuita / ERP", anio: 2026 },
   { tab: "Defontana Digital", partner: "Defontana", solucion: "Defontana Digital", anio: 2026 },
+  { tab: "BCI", partner: "BCI", solucion: "Cuenta Digital", anio: 2026, soloBloquesDe: "Cuenta Digital" },
+  { tab: "BCI", partner: "BCI", solucion: "Banca Nace", anio: 2026, soloBloquesDe: "Banca Nace" },
   {
     tab: "OTIC/Bci Educación Financiera",
     partner: "OTIC CChC",
@@ -1562,6 +1571,30 @@ function groupConvocatoriaSubBlocks(
   });
 }
 
+/** Filtra los sub-bloques de una pestaña compartida entre varias soluciones
+ *  (ver `soloBloquesDe` en `CONVOCATORIA_TABS`): un bloque "<nombre>:
+ *  <soloBloquesDe>" queda (con el sufijo quitado del nombre); uno etiquetado
+ *  para una solución hermana se descarta; uno sin sufijo es compartido y
+ *  queda para todas. */
+function filtrarBloquesPorSolucion(
+  subBlocks: RawConvocatoriaSubBlock[],
+  soloBloquesDe: string,
+  hermanas: string[]
+): RawConvocatoriaSubBlock[] {
+  const propioSufijo = `: ${soloBloquesDe}`.toLowerCase();
+  const sufijosHermanas = hermanas.map((h) => `: ${h}`.toLowerCase());
+  const out: RawConvocatoriaSubBlock[] = [];
+  for (const b of subBlocks) {
+    const lower = b.nombre.toLowerCase();
+    if (lower.endsWith(propioSufijo)) {
+      out.push({ ...b, nombre: b.nombre.slice(0, b.nombre.length - propioSufijo.length).trim() });
+    } else if (!sufijosHermanas.some((s) => lower.endsWith(s))) {
+      out.push(b);
+    }
+  }
+  return out;
+}
+
 /**
  * Lee en vivo el sheet "Funnel_Convocatoria_Partners" (una pestaña por
  * socio/partner + "General") y lo convierte en `ConvocatoriaBlock[]`. Si el
@@ -1579,10 +1612,17 @@ export async function fetchConvocatoriaBlocks(force = false): Promise<Convocator
     const meta = await client.spreadsheets.get({ spreadsheetId });
     const sheetsMeta = meta.data.sheets ?? [];
 
-    const registryByTab = new Map(CONVOCATORIA_TABS.map((r) => [r.tab, r]));
+    // Un mismo nombre de pestaña puede aparecer más de una vez en el
+    // registro (ej. "BCI" para Cuenta Digital y para Banca Nace).
+    const registryRowsByTab = new Map<string, typeof CONVOCATORIA_TABS>();
+    for (const r of CONVOCATORIA_TABS) {
+      const arr = registryRowsByTab.get(r.tab) ?? [];
+      arr.push(r);
+      registryRowsByTab.set(r.tab, arr);
+    }
     const knownTabs = sheetsMeta
       .map((sh) => sh.properties?.title)
-      .filter((t): t is string => !!t && registryByTab.has(t));
+      .filter((t): t is string => !!t && registryRowsByTab.has(t));
 
     const blocks: ConvocatoriaBlock[] = [];
     if (knownTabs.length > 0) {
@@ -1594,7 +1634,7 @@ export async function fetchConvocatoriaBlocks(force = false): Promise<Convocator
       });
 
       knownTabs.forEach((tabTitle, i) => {
-        const registry = registryByTab.get(tabTitle)!;
+        const registryRows = registryRowsByTab.get(tabTitle)!;
         const sheetMeta = sheetsMeta.find((sh) => sh.properties?.title === tabTitle);
         const merges = (sheetMeta?.merges ?? []).map((m) => ({
           startRowIndex: m.startRowIndex ?? 0,
@@ -1602,15 +1642,27 @@ export async function fetchConvocatoriaBlocks(force = false): Promise<Convocator
           startColumnIndex: m.startColumnIndex ?? 0,
         }));
         const values = valuesRes.data.valueRanges?.[i]?.values ?? [];
-        const subBlocks = parseConvocatoriaTab(values, merges);
-        if (subBlocks.length === 0) return;
-        const grupos = groupConvocatoriaSubBlocks(
-          slugify(tabTitle),
-          subBlocks,
-          registry.tituloOverrides,
-          registry.partner === "General"
-        );
-        blocks.push({ partner: registry.partner, anio: registry.anio, solucion: registry.solucion, grupos });
+        const subBlocksRaw = parseConvocatoriaTab(values, merges);
+        if (subBlocksRaw.length === 0) return;
+
+        for (const registry of registryRows) {
+          const subBlocks = registry.soloBloquesDe
+            ? filtrarBloquesPorSolucion(
+                subBlocksRaw,
+                registry.soloBloquesDe,
+                registryRows.filter((r) => r !== registry && r.soloBloquesDe).map((r) => r.soloBloquesDe!)
+              )
+            : subBlocksRaw;
+          if (subBlocks.length === 0) continue;
+          const grupos = groupConvocatoriaSubBlocks(
+            slugify(`${tabTitle}-${registry.solucion ?? "general"}`),
+            subBlocks,
+            registry.tituloOverrides,
+            registry.partner === "General"
+          );
+          if (grupos.length === 0) continue;
+          blocks.push({ partner: registry.partner, anio: registry.anio, solucion: registry.solucion, grupos });
+        }
       });
     }
 
