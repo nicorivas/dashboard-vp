@@ -43,6 +43,8 @@ const ETAPA_REFERENCIA: Record<string, string> = {
   "suscripciones*": "de las suscripciones",
   "alcance de la solución": "del alcance de la solución",
   "adquisición de la solución": "de la adquisición de la solución",
+  "inscripción": "de la inscripción",
+  "asistentes": "de los asistentes",
 };
 
 function etapaReferencia(label: string): string {

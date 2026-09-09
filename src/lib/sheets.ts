@@ -1523,17 +1523,24 @@ function parseConvocatoriaTab(
  *  reporta valores entre 0 y 1 es una tasa (CTR, tasa de apertura...): no
  *  importa cómo la haya llamado Camila en el sheet, se detecta por el
  *  valor, no por el nombre — así no hay que mantener una lista de nombres
- *  de columnas "que son tasa". */
+ *  de columnas "que son tasa".
+ *
+ *  Este merge por columnas compartidas sólo aplica en "General" (sus 3
+ *  fuentes de tráfico realmente se suman en un solo funnel). En el resto de
+ *  las pestañas cada tabla/bloque del sheet es su propio funnel — aunque
+ *  comparta columnas con otro (ej. dos webinars con el mismo formato, o dos
+ *  campañas de OTIC), son datos separados y no deben mezclarse. */
 function groupConvocatoriaSubBlocks(
   tabSlug: string,
   subBlocks: RawConvocatoriaSubBlock[],
-  tituloOverrides?: Record<string, string>
+  tituloOverrides?: Record<string, string>,
+  mergeSameHeaders: boolean = false
 ): TrafficGroup[] {
   const clusters: { headers: string[]; blocks: RawConvocatoriaSubBlock[] }[] = [];
   for (const b of subBlocks) {
-    const cluster = clusters.find(
-      (c) => c.headers.length === b.headers.length && c.headers.every((h, i) => h === b.headers[i])
-    );
+    const cluster = mergeSameHeaders
+      ? clusters.find((c) => c.headers.length === b.headers.length && c.headers.every((h, i) => h === b.headers[i]))
+      : undefined;
     if (cluster) cluster.blocks.push(b);
     else clusters.push({ headers: b.headers, blocks: [b] });
   }
@@ -1597,7 +1604,12 @@ export async function fetchConvocatoriaBlocks(force = false): Promise<Convocator
         const values = valuesRes.data.valueRanges?.[i]?.values ?? [];
         const subBlocks = parseConvocatoriaTab(values, merges);
         if (subBlocks.length === 0) return;
-        const grupos = groupConvocatoriaSubBlocks(slugify(tabTitle), subBlocks, registry.tituloOverrides);
+        const grupos = groupConvocatoriaSubBlocks(
+          slugify(tabTitle),
+          subBlocks,
+          registry.tituloOverrides,
+          registry.partner === "General"
+        );
         blocks.push({ partner: registry.partner, anio: registry.anio, solucion: registry.solucion, grupos });
       });
     }
