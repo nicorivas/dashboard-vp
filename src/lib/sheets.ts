@@ -1468,6 +1468,26 @@ const CONVOCATORIA_TABS: {
   },
   { tab: "Fintegram", partner: "Fintegram", solucion: "Fintegram", anio: 2026 },
   { tab: "FACEA UC", partner: "FACEA UC", solucion: "Pyme UC", anio: 2026 },
+  { tab: "Blue Express", partner: "Blue Express", solucion: "Cupón descuento despacho", anio: 2026 },
+  { tab: "SAWU", partner: "BORD 360", solucion: "SAWU", anio: 2026 },
+  { tab: "BUK", partner: "BUK", solucion: "Buk Starter", anio: 2026 },
+  { tab: "Cobranza online", partner: "Cobranza Online", solucion: "Cobranza Online", anio: 2026 },
+  { tab: "OMIA", partner: "Organizame", solucion: "OMIA", anio: 2026 },
+  { tab: "Rindegastos", partner: "Rindegastos", solucion: "Rindegastos", anio: 2026 },
+  { tab: "Walmart", partner: "Walmart", solucion: "Marketplace", anio: 2026 },
+  { tab: "Kalamar digital", partner: "Kalamar", solucion: "Marketing digital", anio: 2026 },
+  // Kuad System (Plan Integral + Web Profesional) y Microsoft (Elevate,
+  // Agente Copilot, Ciberseguridad) reportan su Convocatoria a nivel de
+  // partner, no separada por solución — igual que "General" (`solucion:
+  // null`, sin filtro de bloques por solución).
+  {
+    tab: "Kuad System",
+    partner: "Kuad System",
+    solucion: null,
+    anio: 2026,
+    tituloOverrides: { "Tráfico Orgánico: Web profesional + Plan integral": "Tráfico Orgánico" },
+  },
+  { tab: "Microsoft", partner: "Microsoft", solucion: null, anio: 2026 },
 ];
 
 /** Definición de tooltip por nombre de fila (tipo de fuente) o de columna,
